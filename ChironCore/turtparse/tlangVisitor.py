@@ -59,6 +59,16 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by tlangParser#typeAnnotation.
+    def visitTypeAnnotation(self, ctx:tlangParser.TypeAnnotationContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#type.
+    def visitType(self, ctx:tlangParser.TypeContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by tlangParser#moveCommand.
     def visitMoveCommand(self, ctx:tlangParser.MoveCommandContext):
         return self.visitChildren(ctx)
@@ -79,13 +89,13 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#unaryExpr.
-    def visitUnaryExpr(self, ctx:tlangParser.UnaryExprContext):
+    # Visit a parse tree produced by tlangParser#valueExpr.
+    def visitValueExpr(self, ctx:tlangParser.ValueExprContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#valueExpr.
-    def visitValueExpr(self, ctx:tlangParser.ValueExprContext):
+    # Visit a parse tree produced by tlangParser#unaryExpr.
+    def visitUnaryExpr(self, ctx:tlangParser.UnaryExprContext):
         return self.visitChildren(ctx)
 
 
@@ -119,8 +129,38 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#condition.
-    def visitCondition(self, ctx:tlangParser.ConditionContext):
+    # Visit a parse tree produced by tlangParser#orCondition.
+    def visitOrCondition(self, ctx:tlangParser.OrConditionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#andCondition.
+    def visitAndCondition(self, ctx:tlangParser.AndConditionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#atomicCondition.
+    def visitAtomicCondition(self, ctx:tlangParser.AtomicConditionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#notCondition.
+    def visitNotCondition(self, ctx:tlangParser.NotConditionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#parenCondition.
+    def visitParenCondition(self, ctx:tlangParser.ParenConditionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#comparisonCondition.
+    def visitComparisonCondition(self, ctx:tlangParser.ComparisonConditionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#penCondition.
+    def visitPenCondition(self, ctx:tlangParser.PenConditionContext):
         return self.visitChildren(ctx)
 
 
@@ -129,13 +169,33 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#logicOp.
-    def visitLogicOp(self, ctx:tlangParser.LogicOpContext):
+    # Visit a parse tree produced by tlangParser#numValue.
+    def visitNumValue(self, ctx:tlangParser.NumValueContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#value.
-    def visitValue(self, ctx:tlangParser.ValueContext):
+    # Visit a parse tree produced by tlangParser#floatValue.
+    def visitFloatValue(self, ctx:tlangParser.FloatValueContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#doubleValue.
+    def visitDoubleValue(self, ctx:tlangParser.DoubleValueContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#stringValue.
+    def visitStringValue(self, ctx:tlangParser.StringValueContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#booleanValue.
+    def visitBooleanValue(self, ctx:tlangParser.BooleanValueContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#varValue.
+    def visitVarValue(self, ctx:tlangParser.VarValueContext):
         return self.visitChildren(ctx)
 
 

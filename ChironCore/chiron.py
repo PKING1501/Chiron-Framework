@@ -26,6 +26,8 @@ import submissionAI as AISub
 from sbflSubmission import computeRanks
 import csv
 
+from type_inference import TypeInference
+
 
 def cleanup():
     pass
@@ -213,6 +215,15 @@ if __name__ == "__main__":
         parseTree = getParseTree(args.progfl)
         astgen = astGenPass()
         ir = astgen.visitStart(parseTree)
+
+    # ---- Type Inference ----
+    inferencer = TypeInference()
+    success = inferencer.infer(ir)
+    if not success:
+        for err in inferencer.errors:
+            print(err, file=sys.stderr)
+        sys.exit(1)
+    # ------------------------
 
     # Set the IR of the program.
     irHandler.setIR(ir)

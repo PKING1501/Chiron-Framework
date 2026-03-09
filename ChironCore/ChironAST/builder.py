@@ -10,6 +10,7 @@ from turtparse.tlangParser import tlangParser
 from turtparse.tlangVisitor import tlangVisitor
 
 from ChironAST import ChironAST
+from chirontypes import Type
 
 
 class astGenPass(tlangVisitor):
@@ -39,8 +40,28 @@ class astGenPass(tlangVisitor):
 
 
     def visitAssignment(self, ctx:tlangParser.AssignmentContext):
-        lval = ChironAST.Var(ctx.VAR().getText())
+        # lval = ChironAST.Var(ctx.VAR().getText())
+        # rval = self.visit(ctx.expression())
+        # return [(ChironAST.AssignmentCommand(lval, rval), 1)]
+        var_name = ctx.VAR().getText()
+        declared_type = None
+
+        # Check if a type annotation exists
+        if ctx.typeAnnotation():
+            type_text = ctx.typeAnnotation().getText()
+            # Map grammar type names to Type enum
+            type_map = {
+                'int': Type.INT,
+                'float': Type.FLOAT,
+                'double': Type.DOUBLE,
+                'string': Type.STRING,
+                'boolean': Type.BOOLEAN
+            }
+            declared_type = type_map.get(type_text, Type.ERROR)
+
+        lval = ChironAST.Var(var_name, declared_type)   # ← pass declared_type
         rval = self.visit(ctx.expression())
+        print(f"RVAL: {rval} ({type(rval)})")   # debug
         return [(ChironAST.AssignmentCommand(lval, rval), 1)]
 
 
@@ -141,9 +162,36 @@ class astGenPass(tlangVisitor):
 
     def visitValue(self, ctx:tlangParser.ValueContext):
         if ctx.NUM():
-            return ChironAST.Num(ctx.NUM().getText())
+            node = ChironAST.Num(ctx.NUM().getText())
+            node.inferred_type = Type.INT
+            return node
+        elif ctx.FLOAT():
+            node = ChironAST.FloatLiteral(ctx.FLOAT().getText())
+            node.inferred_type = Type.FLOAT
+            return node
+        elif ctx.DOUBLE():
+            node = ChironAST.DoubleLiteral(ctx.DOUBLE().getText())
+            node.inferred_type = Type.DOUBLE
+            return node
+        elif ctx.STRING():
+            node = ChironAST.StringLiteral(ctx.STRING().getText())
+            node.inferred_type = Type.STRING
+            return node
+        elif ctx.BOOLEAN():
+            node = ChironAST.BoolLiteral(ctx.BOOLEAN().getText())
+            node.inferred_type = Type.BOOLEAN
+            return node
+            # text = ctx.BOOLEAN().getText().lower()
+            # if text == "true":
+            #     node = ChironAST.BoolTrue()
+            # else:
+            #     node = ChironAST.BoolFalse()
+            # node.inferred_type = Type.BOOLEAN
+            # return node
         elif ctx.VAR():
-            return ChironAST.Var(ctx.VAR().getText())
+            node = ChironAST.Var(ctx.VAR().getText())
+            node.inferred_type = Type.UNKNOWN
+            return node
 
     def visitLoop(self, ctx:tlangParser.LoopContext):
         # insert counter variable in IR for tracking repeat count
@@ -172,3 +220,85 @@ class astGenPass(tlangVisitor):
 
     def visitPenCommand(self, ctx:tlangParser.PenCommandContext):
         return [(ChironAST.PenCommand(ctx.getText()), 1)]
+    
+    def visitNumValue(self, ctx):
+        node = ChironAST.Num(ctx.NUM().getText())
+        node.inferred_type = Type.INT
+        return node
+
+    def visitFloatValue(self, ctx):
+        node = ChironAST.FloatLiteral(ctx.FLOAT().getText())
+        node.inferred_type = Type.FLOAT
+        return node
+
+    def visitDoubleValue(self, ctx):
+        node = ChironAST.DoubleLiteral(ctx.DOUBLE().getText())
+        node.inferred_type = Type.DOUBLE
+        return node
+
+    def visitStringValue(self, ctx):
+        node = ChironAST.StringLiteral(ctx.STRING().getText())
+        node.inferred_type = Type.STRING
+        return node
+
+    def visitBooleanValue(self, ctx):
+        node = ChironAST.BoolLiteral(ctx.BOOLEAN().getText())
+        node.inferred_type = Type.BOOLEAN
+        return node
+
+    def visitVarValue(self, ctx):
+        node = ChironAST.Var(ctx.VAR().getText())
+        node.inferred_type = Type.UNKNOWN
+        return node
+
+    
+    
+    def visitComparisonCondition(self, ctx):
+        left = self.visit(ctx.expression(0))
+        right = self.visit(ctx.expression(1))
+        op = ctx.binCondOp()
+        if op.EQ():
+            return ChironAST.EQ(left, right)
+        elif op.NEQ():
+            return ChironAST.NEQ(left, right)
+        elif op.LT():
+            return ChironAST.LT(left, right)
+        elif op.GT():
+            return ChironAST.GT(left, right)
+        elif op.LTE():
+            return ChironAST.LTE(left, right)
+        elif op.GTE():
+            return ChironAST.GTE(left, right)
+        else:
+            # Should not happen
+            return None
+
+    def visitNotCondition(self, ctx):
+        cond = self.visit(ctx.condition())
+        return ChironAST.NOT(cond)
+
+    def visitAndCondition(self, ctx):
+        left = self.visit(ctx.condition(0))
+        right = self.visit(ctx.condition(1))
+        return ChironAST.AND(left, right)
+
+    def visitOrCondition(self, ctx):
+        left = self.visit(ctx.condition(0))
+        right = self.visit(ctx.condition(1))
+        return ChironAST.OR(left, right)
+
+    def visitAtomicCondition(self, ctx):
+        # value can be a boolean literal or a variable
+        return self.visit(ctx.value())
+
+    def visitParenCondition(self, ctx):
+        return self.visit(ctx.condition())
+
+    def visitPenCondition(self, ctx):
+        return ChironAST.PenStatus()
+
+    
+
+    
+    def visitPauseCommand(self, ctx):
+        return [(ChironAST.PauseCommand(), 1)]
