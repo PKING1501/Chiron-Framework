@@ -18,38 +18,34 @@ class astGenPass(tlangVisitor):
     def __init__(self):
         self.repeatInstrCount = 0 # keeps count for no of 'repeat' instructions
 
-    def visitStart(self, ctx:tlangParser.StartContext):
+    # ----------------------------------------------------------------------
+    # Instruction-level visitors
+    # ----------------------------------------------------------------------
+
+    def visitStart(self, ctx: tlangParser.StartContext):
         stmtList = self.visit(ctx.instruction_list())
         return stmtList
 
-    def visitInstruction_list(self, ctx:tlangParser.Instruction_listContext):
+    def visitInstruction_list(self, ctx: tlangParser.Instruction_listContext):
         instrList = []
         for instr in ctx.instruction():
             instrList.extend(self.visit(instr))
-
         return instrList
 
-    def visitStrict_ilist(self, ctx:tlangParser.Strict_ilistContext):
-	# TODO: code refactoring. visitInstruction_list and visitStrict_ilist have same body
+    def visitStrict_ilist(self, ctx: tlangParser.Strict_ilistContext):
         instrList = []
         for instr in ctx.instruction():
             visvalue = self.visit(instr)
             instrList.extend(visvalue)
-
         return instrList
 
-
-    def visitAssignment(self, ctx:tlangParser.AssignmentContext):
-        # lval = ChironAST.Var(ctx.VAR().getText())
-        # rval = self.visit(ctx.expression())
-        # return [(ChironAST.AssignmentCommand(lval, rval), 1)]
+    def visitAssignment(self, ctx: tlangParser.AssignmentContext):
         var_name = ctx.VAR().getText()
         declared_type = None
 
         # Check if a type annotation exists
         if ctx.typeAnnotation():
             type_text = ctx.typeAnnotation().getText()
-            # Map grammar type names to Type enum
             type_map = {
                 'int': Type.INT,
                 'float': Type.FLOAT,
@@ -59,142 +55,29 @@ class astGenPass(tlangVisitor):
             }
             declared_type = type_map.get(type_text, Type.ERROR)
 
-        lval = ChironAST.Var(var_name, declared_type)   # ← pass declared_type
-        rval = self.visit(ctx.expression())
+        lval = ChironAST.Var(var_name, declared_type)
+        rval = self.visit(ctx.expr())          # changed from ctx.expression()
         print(f"RVAL: {rval} ({type(rval)})")   # debug
         return [(ChironAST.AssignmentCommand(lval, rval), 1)]
 
-
-    def visitIfConditional(self, ctx:tlangParser.IfConditionalContext):
-        condObj = ChironAST.ConditionCommand(self.visit(ctx.condition()))
+    def visitIfConditional(self, ctx: tlangParser.IfConditionalContext):
+        condObj = ChironAST.ConditionCommand(self.visit(ctx.expr()))   # changed
         thenInstrList = self.visit(ctx.strict_ilist())
         return [(condObj, len(thenInstrList) + 1)] + thenInstrList
 
-    def visitIfElseConditional(self, ctx:tlangParser.IfElseConditionalContext):
-        condObj = ChironAST.ConditionCommand(self.visit(ctx.condition()))
+    def visitIfElseConditional(self, ctx: tlangParser.IfElseConditionalContext):
+        condObj = ChironAST.ConditionCommand(self.visit(ctx.expr()))   # changed
         thenInstrList = self.visit(ctx.strict_ilist(0))
         elseInstrList = self.visit(ctx.strict_ilist(1))
         jumpOverElseBlock = [(ChironAST.ConditionCommand(ChironAST.BoolFalse()), len(elseInstrList) + 1)]
         return [(condObj, len(thenInstrList) + 2)] + thenInstrList + jumpOverElseBlock + elseInstrList
 
-    def visitGotoCommand(self, ctx:tlangParser.GotoCommandContext):
-        xcor = self.visit(ctx.expression(0))
-        ycor = self.visit(ctx.expression(1))
+    def visitGotoCommand(self, ctx: tlangParser.GotoCommandContext):
+        xcor = self.visit(ctx.expr(0))          # changed
+        ycor = self.visit(ctx.expr(1))          # changed
         return [(ChironAST.GotoCommand(xcor, ycor), 1)]
 
-    # Visit a parse tree produced by tlangParser#unaryExpr.
-    def visitUnaryExpr(self, ctx:tlangParser.UnaryExprContext):
-        expr1 = self.visit(ctx.expression())
-        if ctx.unaryArithOp().MINUS():
-            return ChironAST.UMinus(expr1)
-        
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by tlangParser#addExpr.
-    def visitAddExpr(self, ctx:tlangParser.AddExprContext):
-        left = self.visit(ctx.expression(0))
-        right = self.visit(ctx.expression(1))
-        if ctx.additive().PLUS():
-            return ChironAST.Sum(left, right)
-        elif ctx.additive().MINUS():
-            return ChironAST.Diff(left, right)
-
-
-    # Visit a parse tree produced by tlangParser#mulExpr.
-    def visitMulExpr(self, ctx:tlangParser.MulExprContext):
-        left = self.visit(ctx.expression(0))
-        right = self.visit(ctx.expression(1))
-        if ctx.multiplicative().MUL():
-            return ChironAST.Mult(left, right)
-        elif ctx.multiplicative().DIV():
-            return ChironAST.Div(left, right)
-
-
-    # Visit a parse tree produced by tlangParser#parenExpr.
-    def visitParenExpr(self, ctx:tlangParser.ParenExprContext):
-        return self.visit(ctx.expression()) 
-   
-
-    def visitCondition(self, ctx:tlangParser.ConditionContext):
-        if ctx.PENCOND():
-            return ChironAST.PenStatus();
-
-        if ctx.NOT():
-            expr1 = self.visit(ctx.condition(0))
-            return ChironAST.NOT(expr1)
-
-
-        if ctx.logicOp():
-            expr1 = self.visit(ctx.condition(0))
-            expr2 = self.visit(ctx.condition(1))
-            logicOpCtx = ctx.logicOp()
-
-            if logicOpCtx.AND():
-                return ChironAST.AND(expr1, expr2)
-            elif logicOpCtx.OR():
-                return ChironAST.OR(expr1, expr2)
-
-
-        if ctx.binCondOp():
-            expr1 = self.visit(ctx.expression(0))
-            expr2 = self.visit(ctx.expression(1))
-            binOpCtx = ctx.binCondOp()
-
-            if binOpCtx.LT():
-                return ChironAST.LT(expr1, expr2)
-            elif binOpCtx.GT():
-                return ChironAST.GT(expr1, expr2)
-            elif binOpCtx.EQ():
-                return ChironAST.EQ(expr1, expr2)
-            elif binOpCtx.NEQ():
-                return ChironAST.NEQ(expr1, expr2)
-            elif binOpCtx.LTE():
-                return ChironAST.LTE(expr1, expr2)
-            elif binOpCtx.GTE():
-                return ChironAST.GTE(expr1, expr2)
-
-        if ctx.condition():
-            # condition is inside paranthesis
-            return self.visit(ctx.condition(0))
-
-        return self.visitChildren(ctx)
-
-    def visitValue(self, ctx:tlangParser.ValueContext):
-        if ctx.NUM():
-            node = ChironAST.Num(ctx.NUM().getText())
-            node.inferred_type = Type.INT
-            return node
-        elif ctx.FLOAT():
-            node = ChironAST.FloatLiteral(ctx.FLOAT().getText())
-            node.inferred_type = Type.FLOAT
-            return node
-        elif ctx.DOUBLE():
-            node = ChironAST.DoubleLiteral(ctx.DOUBLE().getText())
-            node.inferred_type = Type.DOUBLE
-            return node
-        elif ctx.STRING():
-            node = ChironAST.StringLiteral(ctx.STRING().getText())
-            node.inferred_type = Type.STRING
-            return node
-        elif ctx.BOOLEAN():
-            node = ChironAST.BoolLiteral(ctx.BOOLEAN().getText())
-            node.inferred_type = Type.BOOLEAN
-            return node
-            # text = ctx.BOOLEAN().getText().lower()
-            # if text == "true":
-            #     node = ChironAST.BoolTrue()
-            # else:
-            #     node = ChironAST.BoolFalse()
-            # node.inferred_type = Type.BOOLEAN
-            # return node
-        elif ctx.VAR():
-            node = ChironAST.Var(ctx.VAR().getText())
-            node.inferred_type = Type.UNKNOWN
-            return node
-
-    def visitLoop(self, ctx:tlangParser.LoopContext):
-        # insert counter variable in IR for tracking repeat count
+    def visitLoop(self, ctx: tlangParser.LoopContext):
         self.repeatInstrCount += 1
         repeatNum = self.visit(ctx.value())
         counterVar = ChironAST.Var(":__rep_counter_" + str(self.repeatInstrCount))
@@ -213,14 +96,21 @@ class astGenPass(tlangVisitor):
         return [(counterVarInitInstr, 1), (loopCond, len(thenInstrList) + 3)] + thenInstrList +\
             [(counterVarDecrInstr, 1), (boolFalse, -len(thenInstrList) - 2)]
 
-    def visitMoveCommand(self, ctx:tlangParser.MoveCommandContext):
+    def visitMoveCommand(self, ctx: tlangParser.MoveCommandContext):
         mvcommand = ctx.moveOp().getText()
-        mvexpr = self.visit(ctx.expression())
+        mvexpr = self.visit(ctx.expr())          # changed
         return [(ChironAST.MoveCommand(mvcommand, mvexpr), 1)]
 
-    def visitPenCommand(self, ctx:tlangParser.PenCommandContext):
+    def visitPenCommand(self, ctx: tlangParser.PenCommandContext):
         return [(ChironAST.PenCommand(ctx.getText()), 1)]
-    
+
+    def visitPauseCommand(self, ctx):
+        return [(ChironAST.PauseCommand(), 1)]
+
+    # ----------------------------------------------------------------------
+    # Value visitors (unchanged – already handle labeled alternatives)
+    # ----------------------------------------------------------------------
+
     def visitNumValue(self, ctx):
         node = ChironAST.Num(ctx.NUM().getText())
         node.inferred_type = Type.INT
@@ -251,54 +141,101 @@ class astGenPass(tlangVisitor):
         node.inferred_type = Type.UNKNOWN
         return node
 
-    
-    
-    def visitComparisonCondition(self, ctx):
-        left = self.visit(ctx.expression(0))
-        right = self.visit(ctx.expression(1))
-        op = ctx.binCondOp()
-        if op.EQ():
-            return ChironAST.EQ(left, right)
-        elif op.NEQ():
-            return ChironAST.NEQ(left, right)
-        elif op.LT():
-            return ChironAST.LT(left, right)
-        elif op.GT():
-            return ChironAST.GT(left, right)
-        elif op.LTE():
-            return ChironAST.LTE(left, right)
-        elif op.GTE():
-            return ChironAST.GTE(left, right)
+    # ----------------------------------------------------------------------
+    # Unified expression visitors (new hierarchy)
+    # ----------------------------------------------------------------------
+
+    def visitOrExpr(self, ctx: tlangParser.OrExprContext):
+        # orExpr : andExpr ( OR andExpr )* ;
+        operands = ctx.andExpr()
+        result = self.visit(operands[0])
+        for i in range(1, len(operands)):
+            # get the i-1th OR token
+            op = ctx.OR(i-1)
+            right = self.visit(operands[i])
+            result = ChironAST.OR(result, right)
+        return result
+
+    def visitAndExpr(self, ctx: tlangParser.AndExprContext):
+        operands = ctx.equalityExpr()
+        result = self.visit(operands[0])
+        for i in range(1, len(operands)):
+            op = ctx.AND(i-1)
+            right = self.visit(operands[i])
+            result = ChironAST.AND(result, right)
+        return result
+
+    def visitEqualityExpr(self, ctx: tlangParser.EqualityExprContext):
+        operands = ctx.relationalExpr()
+        result = self.visit(operands[0])
+        for i in range(1, len(operands)):
+            # There are two possible operators: EQ or NEQ
+            if ctx.EQ(i-1):
+                right = self.visit(operands[i])
+                result = ChironAST.EQ(result, right)
+            else:  # ctx.NEQ(i-1)
+                right = self.visit(operands[i])
+                result = ChironAST.NEQ(result, right)
+        return result
+
+    def visitRelationalExpr(self, ctx: tlangParser.RelationalExprContext):
+        operands = ctx.additiveExpr()
+        result = self.visit(operands[0])
+        for i in range(1, len(operands)):
+            if ctx.LT(i-1):
+                right = self.visit(operands[i])
+                result = ChironAST.LT(result, right)
+            elif ctx.GT(i-1):
+                right = self.visit(operands[i])
+                result = ChironAST.GT(result, right)
+            elif ctx.LTE(i-1):
+                right = self.visit(operands[i])
+                result = ChironAST.LTE(result, right)
+            else:  # ctx.GTE(i-1)
+                right = self.visit(operands[i])
+                result = ChironAST.GTE(result, right)
+        return result
+
+    def visitAdditiveExpr(self, ctx: tlangParser.AdditiveExprContext):
+        operands = ctx.multiplicativeExpr()
+        result = self.visit(operands[0])
+        for i in range(1, len(operands)):
+            if ctx.PLUS(i-1):
+                right = self.visit(operands[i])
+                result = ChironAST.Sum(result, right)
+            else:  # ctx.MINUS(i-1)
+                right = self.visit(operands[i])
+                result = ChironAST.Diff(result, right)
+        return result
+
+    def visitMultiplicativeExpr(self, ctx: tlangParser.MultiplicativeExprContext):
+        operands = ctx.unaryExpr()
+        result = self.visit(operands[0])
+        for i in range(1, len(operands)):
+            if ctx.MUL(i-1):
+                right = self.visit(operands[i])
+                result = ChironAST.Mult(result, right)
+            else:  # ctx.DIV(i-1)
+                right = self.visit(operands[i])
+                result = ChironAST.Div(result, right)
+        return result
+
+    def visitUnaryExpr(self, ctx: tlangParser.UnaryExprContext):
+        # unaryExpr : (MINUS | NOT)? primary ;
+        if ctx.MINUS():
+            expr = self.visit(ctx.primary())
+            return ChironAST.UMinus(expr)
+        elif ctx.NOT():
+            expr = self.visit(ctx.primary())
+            return ChironAST.NOT(expr)
         else:
-            # Should not happen
-            return None
+            return self.visit(ctx.primary())
 
-    def visitNotCondition(self, ctx):
-        cond = self.visit(ctx.condition())
-        return ChironAST.NOT(cond)
-
-    def visitAndCondition(self, ctx):
-        left = self.visit(ctx.condition(0))
-        right = self.visit(ctx.condition(1))
-        return ChironAST.AND(left, right)
-
-    def visitOrCondition(self, ctx):
-        left = self.visit(ctx.condition(0))
-        right = self.visit(ctx.condition(1))
-        return ChironAST.OR(left, right)
-
-    def visitAtomicCondition(self, ctx):
-        # value can be a boolean literal or a variable
+    def visitPrimaryValue(self, ctx: tlangParser.PrimaryValueContext):
         return self.visit(ctx.value())
 
-    def visitParenCondition(self, ctx):
-        return self.visit(ctx.condition())
+    def visitParenExpr(self, ctx: tlangParser.ParenExprContext):
+        return self.visit(ctx.expr())
 
-    def visitPenCondition(self, ctx):
+    def visitPenCondition(self, ctx: tlangParser.PenConditionContext):
         return ChironAST.PenStatus()
-
-    
-
-    
-    def visitPauseCommand(self, ctx):
-        return [(ChironAST.PauseCommand(), 1)]

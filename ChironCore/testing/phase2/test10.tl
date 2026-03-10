@@ -23,4 +23,5 @@
 :repeat_count = 3
 repeat :repeat_count [
     forward 10
+    pause
 ]
