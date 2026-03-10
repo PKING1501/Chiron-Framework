@@ -9,7 +9,7 @@ from ChironAST import ChironAST
 
 
 def getParseTree(progfl):
-    input_stream = antlr4.FileStream(progfl)
+    input_stream = antlr4.FileStream(progfl, encoding='utf-8')
     print(input_stream)
     try:
         lexer = tlangLexer(input_stream)

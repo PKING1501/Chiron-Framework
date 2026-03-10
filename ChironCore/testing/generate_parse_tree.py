@@ -3,6 +3,10 @@
 
 import sys
 from pathlib import Path
+
+# Add the ChironCore directory to Python path
+sys.path.insert(0, str(Path(__file__).parent.parent))  # goes up one level to ChironCore/
+
 from antlr4 import *
 from turtparse.tlangLexer import tlangLexer
 from turtparse.tlangParser import tlangParser

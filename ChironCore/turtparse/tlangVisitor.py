@@ -89,8 +89,38 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#valueExpr.
-    def visitValueExpr(self, ctx:tlangParser.ValueExprContext):
+    # Visit a parse tree produced by tlangParser#expr.
+    def visitExpr(self, ctx:tlangParser.ExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#orExpr.
+    def visitOrExpr(self, ctx:tlangParser.OrExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#andExpr.
+    def visitAndExpr(self, ctx:tlangParser.AndExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#equalityExpr.
+    def visitEqualityExpr(self, ctx:tlangParser.EqualityExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#relationalExpr.
+    def visitRelationalExpr(self, ctx:tlangParser.RelationalExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#additiveExpr.
+    def visitAdditiveExpr(self, ctx:tlangParser.AdditiveExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#multiplicativeExpr.
+    def visitMultiplicativeExpr(self, ctx:tlangParser.MultiplicativeExprContext):
         return self.visitChildren(ctx)
 
 
@@ -99,13 +129,8 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#addExpr.
-    def visitAddExpr(self, ctx:tlangParser.AddExprContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by tlangParser#mulExpr.
-    def visitMulExpr(self, ctx:tlangParser.MulExprContext):
+    # Visit a parse tree produced by tlangParser#primaryValue.
+    def visitPrimaryValue(self, ctx:tlangParser.PrimaryValueContext):
         return self.visitChildren(ctx)
 
 
@@ -114,58 +139,8 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#multiplicative.
-    def visitMultiplicative(self, ctx:tlangParser.MultiplicativeContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by tlangParser#additive.
-    def visitAdditive(self, ctx:tlangParser.AdditiveContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by tlangParser#unaryArithOp.
-    def visitUnaryArithOp(self, ctx:tlangParser.UnaryArithOpContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by tlangParser#orCondition.
-    def visitOrCondition(self, ctx:tlangParser.OrConditionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by tlangParser#andCondition.
-    def visitAndCondition(self, ctx:tlangParser.AndConditionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by tlangParser#atomicCondition.
-    def visitAtomicCondition(self, ctx:tlangParser.AtomicConditionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by tlangParser#notCondition.
-    def visitNotCondition(self, ctx:tlangParser.NotConditionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by tlangParser#parenCondition.
-    def visitParenCondition(self, ctx:tlangParser.ParenConditionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by tlangParser#comparisonCondition.
-    def visitComparisonCondition(self, ctx:tlangParser.ComparisonConditionContext):
-        return self.visitChildren(ctx)
-
-
     # Visit a parse tree produced by tlangParser#penCondition.
     def visitPenCondition(self, ctx:tlangParser.PenConditionContext):
-        return self.visitChildren(ctx)
-
-
-    # Visit a parse tree produced by tlangParser#binCondOp.
-    def visitBinCondOp(self, ctx:tlangParser.BinCondOpContext):
         return self.visitChildren(ctx)
 
 

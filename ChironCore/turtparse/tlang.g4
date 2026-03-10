@@ -8,105 +8,57 @@ start : instruction_list EOF
       ;
 
 instruction_list : (instruction)*
-		 ;
+                 ;
 
 strict_ilist : (instruction)+
              ;
 
 instruction : assignment
-	    | conditional
-	    | loop
-	    | moveCommand
-	    | penCommand
-	    | gotoCommand
-	    | pauseCommand
-	    ;
+            | conditional
+            | loop
+            | moveCommand
+            | penCommand
+            | gotoCommand
+            | pauseCommand
+            ;
 
 conditional : ifConditional | ifElseConditional ;
 
-ifConditional : 'if' condition '[' strict_ilist ']' ;
-
-ifElseConditional : 'if' condition '[' strict_ilist ']' 'else' '[' strict_ilist ']' ;
+ifConditional : 'if' expr '[' strict_ilist ']' ;          // changed from condition
+ifElseConditional : 'if' expr '[' strict_ilist ']' 'else' '[' strict_ilist ']' ; // changed
 
 loop : 'repeat' value '[' strict_ilist ']' ;
 
-gotoCommand : 'goto' '(' expression ',' expression ')';
+gotoCommand : 'goto' '(' expr ',' expr ')' ;              // changed from expression
 
-// Assignment now supports optional type annotations
-assignment : VAR typeAnnotation? '=' expression
-	   ;
+assignment : VAR typeAnnotation? '=' expr ;                // changed from expression
 
-// Type annotation syntax (e.g., :x int = 5)
-typeAnnotation : type
-               ;
+typeAnnotation : type ;
 
-// Type system - supports int, float, double, string, boolean
-type : 'int'
-     | 'float' 
-     | 'double'
-     | 'string'
-     | 'boolean'
-     ;
+type : 'int' | 'float' | 'double' | 'string' | 'boolean' ;
 
-moveCommand : moveOp expression ;
-
+moveCommand : moveOp expr ;                                // changed
 moveOp : 'forward' | 'backward' | 'left' | 'right' ;
 
 penCommand : 'penup' | 'pendown' ;
 
 pauseCommand : 'pause' ;
 
-// ============================================================================
-// FIXED: Expression with CORRECT precedence
-// Precedence (lowest to highest): +/-, */, unary-, atoms
-// ============================================================================
-expression : '(' expression ')'                 #parenExpr    // Highest: parentheses
-        | value                                 #valueExpr    // Highest: literals/vars
-        | unaryArithOp expression               #unaryExpr    // Higher: unary -
-        | expression multiplicative expression  #mulExpr      // Higher: * /
-        | expression additive expression        #addExpr      // Lowest: + -
- 	   ;
+// Unified expression grammar with precedence (lowest to highest)
+expr : orExpr ;
 
-multiplicative : MUL | DIV;
+orExpr : andExpr ( OR andExpr )* ;
+andExpr : equalityExpr ( AND equalityExpr )* ;
+equalityExpr : relationalExpr ( ( EQ | NEQ ) relationalExpr )* ;
+relationalExpr : additiveExpr ( ( LT | GT | LTE | GTE ) additiveExpr )* ;
+additiveExpr : multiplicativeExpr ( ( PLUS | MINUS ) multiplicativeExpr )* ;
+multiplicativeExpr : unaryExpr ( ( MUL | DIV ) unaryExpr )* ;
+unaryExpr : ( MINUS | NOT )? primary ;
+primary : value                  #primaryValue
+        | '(' expr ')'           #parenExpr
+        | PENCOND                #penCondition
+        ;
 
-additive : PLUS | MINUS;
-
-unaryArithOp : MINUS ;
-
-PLUS     : '+' ;
-MINUS    : '-' ;
-MUL  	 : '*' ;
-DIV      : '/' ;
-
-// ============================================================================
-// FIXED: Condition with proper precedence
-// Precedence (lowest to highest): OR, AND, NOT, comparisons, atoms
-// ============================================================================
-condition : expression binCondOp expression     #comparisonCondition  // Higher than NOT
-          | NOT condition                       #notCondition     // Higher than AND
-          | condition AND condition             #andCondition     // Higher than OR
-		  | condition OR condition              #orCondition       // Lowest
-		  | value                               #atomicCondition  // Atomic (for booleans)
-          | '(' condition ')'                   #parenCondition   // Override precedence
-          | PENCOND                             #penCondition     // Atomic
-          ;
-
-binCondOp :  EQ | NEQ | LT | GT | LTE | GTE
-	 ;
-
-PENCOND : 'pendown?';
-
-LT : '<' ;
-GT : '>' ;
-EQ : '==';
-NEQ: '!=';
-LTE: '<=';
-GTE: '>=';
-AND: '&&';
-OR : '||';
-NOT: '!' ;
-
-// value now includes all literal types
 value : NUM          #numValue
       | FLOAT        #floatValue
       | DOUBLE       #doubleValue
@@ -116,42 +68,32 @@ value : NUM          #numValue
       ;
 
 // ============================================================================
-// LEXER RULES (Tokens)
+// LEXER RULES
 // ============================================================================
 
-// NUM now explicitly represents integers only
-NUM  : [0-9]+        ;
+PENCOND : 'pendown?' ;
+LT : '<' ;
+GT : '>' ;
+EQ : '==' ;
+NEQ : '!=' ;
+LTE : '<=' ;
+GTE : '>=' ;
+AND : '&&' ;
+OR : '||' ;
+NOT : '!' ;
+PLUS : '+' ;
+MINUS : '-' ;
+MUL : '*' ;
+DIV : '/' ;
 
-// Float literal (e.g., 3.5f or 3.5F)
+NUM  : [0-9]+ ;
 FLOAT : [0-9]+ '.' [0-9]+ [fF] ;
-
-// Double literal (e.g., 3.5 or 3.5d or 3.5D)
-DOUBLE : [0-9]+ '.' [0-9]+ ([dD])?
-       | [0-9]+ [dD]
-       ;
-
-// String literal (double-quoted)
+DOUBLE : [0-9]+ '.' [0-9]+ ([dD])? | [0-9]+ [dD] ;
 STRING : '"' (~["\r\n\\] | '\\' .)* '"' ;
-
-// Boolean literals
 BOOLEAN : 'true' | 'false' ;
+VAR  : ':'[a-zA-Z_] [a-zA-Z_0-9]* ;
+NAME : [a-zA-Z]+ ;
 
-VAR  : ':'[a-zA-Z_] [a-zA-Z0-9]* ;
-
-NAME : [a-zA-Z]+     ;
-
-// ============================================================================
-// COMMENTS (must come before Whitespace)
-// ============================================================================
-
-// Single-line comment: // comment text
 LINE_COMMENT : '//' ~[\r\n]* -> skip ;
-
-// Multi-line comment: /* comment text */
 BLOCK_COMMENT : '/*' .*? '*/' -> skip ;
-
-// ============================================================================
-// WHITESPACE (must come last)
-// ============================================================================
-
-Whitespace: [ \t\n\r]+ -> skip;
+Whitespace : [ \t\n\r]+ -> skip ;
