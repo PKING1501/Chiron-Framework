@@ -26,8 +26,6 @@ import submissionAI as AISub
 from sbflSubmission import computeRanks
 import csv
 
-from type_inference import TypeInference
-
 
 def cleanup():
     pass
@@ -197,6 +195,12 @@ if __name__ == "__main__":
         default=True,
         type=bool,
     )
+    cmdparser.add_argument(
+        "-tis",
+        "--type-inference",
+        action="store_true",
+        help="Enable static type inference and checking (disabled by default)",
+    )
 
     args = cmdparser.parse_args()
     ir = ""
@@ -216,13 +220,50 @@ if __name__ == "__main__":
         astgen = astGenPass()
         ir = astgen.visitStart(parseTree)
 
-    # ---- Type Inference ----
-    inferencer = TypeInference()
-    success = inferencer.infer(ir)
-    if not success:
-        for err in inferencer.errors:
-            print(err, file=sys.stderr)
-        sys.exit(1)
+    # ---- Type Inference (optional) ----
+    if args.type_inference:
+        print("Static type inference enabled...")
+        from type_inference import TypeInference
+
+        inferencer = TypeInference()
+
+        # Pre-populate symbol table with command-line input variables
+        # These are treated as already initialized before program starts
+        for key in args.params.keys():
+            # key is like ":x", ":y", etc.
+            var_name = key
+            
+            # We need to know the type from the value
+            val = args.params[key]
+            
+            # Infer type from Python value
+            if isinstance(val, int):
+                var_type = Type.INT
+            elif isinstance(val, float):
+                # Check if it's actually a float or could be double
+                # For simplicity, treat all floats as FLOAT
+                var_type = Type.FLOAT
+            elif isinstance(val, str):
+                var_type = Type.STRING
+            elif isinstance(val, bool):
+                var_type = Type.BOOLEAN
+            else:
+                var_type = Type.UNKNOWN
+            
+            # Add to symbol table BEFORE inference starts
+            inferencer.add_input_variable(var_name, var_type)
+            print(f"Input variable: {var_name} with type {var_type.value}")  # debug
+
+        success = inferencer.infer(ir)
+        if not success:
+            print("\nType errors found:")
+            for err in inferencer.errors:
+                print(f"  {err}")
+            print("\nExecution aborted due to type errors.")
+            sys.exit(1)
+        else:
+            print("Type inference completed successfully. No type errors found.")
+    
     # ------------------------
 
     # Set the IR of the program.

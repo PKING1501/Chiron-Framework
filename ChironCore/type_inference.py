@@ -12,15 +12,27 @@ class TypeInferenceError(Exception):
 class TypeInference:
     def __init__(self):
         self.symbols = {}          # var name -> inferred type
+        self.input_vars = set()    # variables that come from command line
+        self.used_vars = set()
         self.errors = []            # list of error messages
         self.current_function = None   # not used (no functions yet)
 
+    def add_input_variable(self, var_name, var_type):
+        """Add a command-line input variable to the symbol table."""
+        self.symbols[var_name] = var_type
+        self.input_vars.add(var_name)
+
     def infer(self, ast_root):
         """Main entry point: walk the instruction list and infer types."""
-        # ast_root is a list of tuples (instruction_node, count)
         for instr_tuple in ast_root:
             instr = instr_tuple[0]
             self.visit(instr)
+        
+        # Warn about unused input variables
+        for var_name in self.input_vars:
+            if var_name not in self.used_vars:
+                print(f"Warning: Input variable '{var_name}' was never used")
+        
         return len(self.errors) == 0
 
     def error(self, node, message):
@@ -141,7 +153,10 @@ class TypeInference:
         if var_name not in self.symbols:
             self.error(node, f"Variable '{var_name}' used before assignment")
             return Type.ERROR
-        # Propagate the inferred type to the node (may already be set)
+        
+        # Mark as used
+        self.used_vars.add(var_name)
+        
         node.inferred_type = self.symbols[var_name]
         return node.inferred_type
 

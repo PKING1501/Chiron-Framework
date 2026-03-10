@@ -137,7 +137,11 @@ class astGenPass(tlangVisitor):
         return node
 
     def visitVarValue(self, ctx):
-        node = ChironAST.Var(ctx.VAR().getText())
+        raw = ctx.VAR().getText()
+        # Normalize: ensure variable names always have colon for internal storage
+        if not raw.startswith(':'):
+            raw = ':' + raw
+        node = ChironAST.Var(raw)
         node.inferred_type = Type.UNKNOWN
         return node
 

@@ -91,7 +91,7 @@ FLOAT : [0-9]+ '.' [0-9]+ [fF] ;
 DOUBLE : [0-9]+ '.' [0-9]+ ([dD])? | [0-9]+ [dD] ;
 STRING : '"' (~["\r\n\\] | '\\' .)* '"' ;
 BOOLEAN : 'true' | 'false' ;
-VAR  : ':'[a-zA-Z_] [a-zA-Z_0-9]* ;
+VAR  : ':'?[a-zA-Z_] [a-zA-Z_0-9]* ;
 NAME : [a-zA-Z]+ ;
 
 LINE_COMMENT : '//' ~[\r\n]* -> skip ;
