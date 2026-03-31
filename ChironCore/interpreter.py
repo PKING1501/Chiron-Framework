@@ -98,6 +98,10 @@ class ConcreteInterpreter(Interpreter):
 
         if isinstance(stmt, ChironAST.AssignmentCommand):
             ntgt = self.handleAssignment(stmt, tgt)
+        elif isinstance(stmt, ChironAST.ArrayAllocation):
+            ntgt = self.handleArrayAllocation(stmt, tgt)
+        elif isinstance(stmt, ChironAST.ArrayAssignmentCommand):
+            ntgt = self.handleArrayAssignment(stmt, tgt)
         elif isinstance(stmt, ChironAST.ConditionCommand):
             ntgt = self.handleCondition(stmt, tgt)
         elif isinstance(stmt, ChironAST.MoveCommand):
@@ -136,7 +140,40 @@ class ConcreteInterpreter(Interpreter):
         print("  Assignment Statement")
         lhs = str(stmt.lvar).replace(":","")
         rhs = addContext(stmt.rexpr)
+        
+        # from chirontypes import Type
+        if stmt.lvar.type in [Type.FLOAT, Type.DOUBLE]:
+            rhs = f"float({rhs})"
+        elif stmt.lvar.type == Type.INT:
+            rhs = f"int({rhs})"
+        elif stmt.lvar.type == Type.STRING:
+            rhs = f"str({rhs})"
+            
         exec("setattr(self.prg,\"%s\",%s)" % (lhs,rhs))
+        return 1
+
+    def handleArrayAllocation(self, stmt, tgt):
+        print("  Array Allocation")
+        lhs = str(stmt.avar).replace(":", "")
+        size_expr = addContext(stmt.size)
+        exec(f"self.prg.{lhs} = [None] * ({size_expr})")
+        return 1
+
+    def handleArrayAssignment(self, stmt, tgt):
+        print("  Array Assignment Statement")
+        lhs_var = str(stmt.avar).replace(":", "")
+        idx_expr = addContext(stmt.index)
+        rhs_expr = addContext(stmt.rexpr)
+        
+        elem_t = stmt.avar.type.element_type
+        if elem_t in [Type.FLOAT, Type.DOUBLE]:
+            rhs_expr = f"float({rhs_expr})"
+        elif elem_t == Type.INT:
+            rhs_expr = f"int({rhs_expr})"
+        elif elem_t == Type.STRING:
+            rhs_expr = f"str({rhs_expr})"
+            
+        exec(f"self.prg.{lhs_var}[{idx_expr}] = {rhs_expr}")
         return 1
 
     def handleCondition(self, stmt, tgt):
