@@ -21,3 +21,20 @@ class Type(Enum):
             Type.FLOAT: [Type.DOUBLE],
         }
         return other in promotions.get(self, [])
+
+class ArrayType:
+    def __init__(self, element_type, size):
+        self.element_type = element_type
+        self.size = size
+        self.value = f"{element_type.value}[{size}]"
+        
+    def __eq__(self, other):
+        if not isinstance(other, ArrayType):
+            return False
+        return self.element_type == other.element_type and self.size == other.size
+        
+    def is_numeric(self):
+        return False
+        
+    def can_promote_to(self, other):
+        return False

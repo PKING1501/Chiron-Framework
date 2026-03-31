@@ -22,6 +22,24 @@ class AssignmentCommand(Instruction):
     def __str__(self):
         return self.lvar.__str__() + " = " + self.rexpr.__str__()
 
+class ArrayAllocation(Instruction):
+    def __init__(self, arr_var, elem_type, size):
+        self.avar = arr_var
+        self.elem_type = elem_type
+        self.size = size
+
+    def __str__(self):
+        return self.avar.__str__() + " " + self.elem_type.value + "[" + self.size.__str__() + "]"
+
+class ArrayAssignmentCommand(Instruction):
+    def __init__(self, arr_var, index, rexpr):
+        self.avar = arr_var
+        self.index = index
+        self.rexpr = rexpr
+
+    def __str__(self):
+        return self.avar.__str__() + "[" + self.index.__str__() + "] = " + self.rexpr.__str__()
+
 
 class ConditionCommand(Instruction):
     def __init__(self, condition):
@@ -224,7 +242,14 @@ class BoolFalse(BoolExpr):
 class Value(Expression):
     pass
 
+class ArrayAccess(Value):
+    def __init__(self, arr_var, index):
+        super().__init__()
+        self.avar = arr_var
+        self.index = index
 
+    def __str__(self):
+        return self.avar.__str__() + "[" + self.index.__str__() + "]"
 class Num(Value):
     def __init__(self, v):
         super().__init__()

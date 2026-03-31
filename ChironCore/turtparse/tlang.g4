@@ -14,6 +14,8 @@ strict_ilist : (instruction)+
              ;
 
 instruction : assignment
+            | arrayDecl
+            | arrayAssignment
             | conditional
             | loop
             | moveCommand
@@ -21,6 +23,9 @@ instruction : assignment
             | gotoCommand
             | pauseCommand
             ;
+
+arrayDecl : VAR type '[' NUM ']' ;
+arrayAssignment : VAR '[' expr ']' '=' expr ;
 
 conditional : ifConditional | ifElseConditional ;
 
@@ -57,6 +62,7 @@ unaryExpr : ( MINUS | NOT )? primary ;
 primary : value                  #primaryValue
         | '(' expr ')'           #parenExpr
         | PENCOND                #penCondition
+        | VAR '[' expr ']'       #arrayAccessExpr
         ;
 
 value : NUM          #numValue

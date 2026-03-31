@@ -3,7 +3,7 @@
 # Type inference engine for ChironLang
 
 import sys
-from chirontypes import Type
+from chirontypes import Type, ArrayType
 from ChironAST.ChironAST import AST, Sum, Div
 
 class TypeInferenceError(Exception):
@@ -71,6 +71,84 @@ class TypeInference:
     # ----------------------------------------------------------------------
     # Instruction nodes
     # ----------------------------------------------------------------------
+
+    def visit_ArrayAllocation(self, node):
+        size_type = self.visit(node.size)
+        if size_type != Type.INT:
+            self.error(node, f"Array size must be an integer, got {size_type.value}")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+            
+        var_name = node.avar.varname
+        array_type = ArrayType(node.elem_type, node.size.val)
+        
+        # Check if already declared
+        if var_name in self.symbols:
+            self.error(node, f"Variable '{var_name}' is already declared")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+            
+        self.symbols[var_name] = array_type
+        node.avar.type = array_type
+        node.type = Type.VOID
+        return Type.VOID
+
+    def visit_ArrayAssignmentCommand(self, node):
+        var_name = node.avar.varname
+        if var_name not in self.symbols:
+            self.error(node, f"Array '{var_name}' accessed before allocation")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+            
+        arr_type = self.symbols[var_name]
+        if not isinstance(arr_type, ArrayType):
+            self.error(node, f"Variable '{var_name}' is not an array")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+            
+        index_type = self.visit(node.index)
+        if index_type != Type.INT:
+            self.error(node, f"Array index must be an integer, got {index_type.value}")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+            
+        rhs_type = self.visit(node.rexpr)
+        if not self.is_assignable(rhs_type, arr_type.element_type):
+            self.error(node, f"Cannot assign {rhs_type.value} to array '{var_name}' of element type {arr_type.element_type.value}")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+            
+        if rhs_type != arr_type.element_type:
+            node.rexpr.type = arr_type.element_type  # Promote/demote expression explicitly to match Array type
+
+        node.avar.type = arr_type
+        node.type = Type.VOID
+        return Type.VOID
+
+    def visit_ArrayAccess(self, node):
+        var_name = node.avar.varname
+        if var_name not in self.symbols:
+            self.error(node, f"Array '{var_name}' accessed before allocation")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+            
+        arr_type = self.symbols[var_name]
+        if not isinstance(arr_type, ArrayType):
+            self.error(node, f"Variable '{var_name}' is not an array")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+            
+        index_type = self.visit(node.index)
+        if index_type != Type.INT:
+            self.error(node, f"Array index must be an integer, got {index_type.value}")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+            
+        node.avar.type = arr_type
+        self.used_vars.add(var_name)
+        
+        node.type = arr_type.element_type
+        return arr_type.element_type
 
     def visit_AssignmentCommand(self, node):
         # First visit the right-hand side expression (to infer its type)

@@ -23,7 +23,7 @@ from turtparse.tlangParser import tlangParser
 
 
 class ErrorListener(antlr4.error.ErrorListener.ErrorListener):
-    """Custom error listener to collect parse errors"""
+    """Custom error listener to collect parse and lexer errors quietly"""
     def __init__(self):
         self.errors = []
 
@@ -37,17 +37,20 @@ def test_parse(filepath):
         # Read input
         input_stream = FileStream(str(filepath), encoding='utf-8')
 
+        # Create custom error listener
+        error_listener = ErrorListener()
+
         # Lexer
         lexer = tlangLexer(input_stream)
+        lexer.removeErrorListeners() # Remove default console output
+        lexer.addErrorListener(error_listener) # Add custom listener
+        
         token_stream = CommonTokenStream(lexer)
 
         # Parser
         parser = tlangParser(token_stream)
-
-        # Add error listener to catch errors
-        parser.removeErrorListeners()
-        error_listener = ErrorListener()
-        parser.addErrorListener(error_listener)
+        parser.removeErrorListeners() # Remove default console output
+        parser.addErrorListener(error_listener) # Add custom listener
 
         # Parse
         parser.start()
@@ -127,44 +130,71 @@ def main():
     print()
     print("-" * 80)
 
-    passed = 0
-    failed = 0
+    test_passed_count = 0
+    test_failed_count = 0
     results = []
 
     for filepath in tl_files:
 
         rel_path = get_relative_path(filepath, testing_dir)
+        filename = filepath.name.lower()
+        
+        # Determine if this file is *expected* to fail parsing
+        expected_to_fail = "incorrect" in filename
 
-        success, errors = test_parse(filepath)
+        parse_success, errors = test_parse(filepath)
 
-        if success:
-            print(f"PASSED: {rel_path}")
-            passed += 1
-            results.append((rel_path, True, None))
+        # Evaluate the test outcome
+        if expected_to_fail:
+            if not parse_success:
+                test_status = "PASSED"
+                reason = "EXPECTED FAILURE (Caught syntax errors correctly)"
+                is_test_success = True
+            else:
+                test_status = "FAILED"
+                reason = "UNEXPECTED SUCCESS (Should have failed syntax check but didn't)"
+                is_test_success = False
         else:
-            print(f"FAILED: {rel_path}")
-            for error in errors:
-                print(f"         {error}")
-            failed += 1
-            results.append((rel_path, False, errors))
+            if parse_success:
+                test_status = "PASSED"
+                reason = "EXPECTED SUCCESS (Parsed correctly)"
+                is_test_success = True
+            else:
+                test_status = "FAILED"
+                reason = "UNEXPECTED FAILURE (Failed to parse correctly)"
+                is_test_success = False
 
+        # Print per-file result
+        print(f"[{test_status}] {rel_path}")
+        print(f"         {reason}")
+        
+        if is_test_success:
+            test_passed_count += 1
+        else:
+            test_failed_count += 1
+            
+        results.append((rel_path, is_test_success, reason, errors, expected_to_fail))
         print("-" * 80)
 
-    print_summary(len(tl_files), passed, failed)
+    print_summary(len(tl_files), test_passed_count, test_failed_count)
 
-    if failed > 0:
+    # Only print detailed failure report for ACTUAL test framework failures
+    if test_failed_count > 0:
         print()
         print("=" * 80)
-        print("  DETAILED FAILURE REPORT")
+        print("  DETAILED FAILURE REPORT (Unexpected Outcomes)")
         print("=" * 80)
 
-        for rel_path, success, errors in results:
-            if not success:
+        for rel_path, is_test_success, reason, errors, expected_to_fail in results:
+            if not is_test_success:
                 print(f"\n{rel_path}")
-                for error in errors:
-                    print(f"   • {error}")
+                print(f"   Issue: {reason}")
+                if errors:
+                    print("   Errors caught during parsing:")
+                    for error in errors:
+                        print(f"     • {error}")
 
-    sys.exit(0 if failed == 0 else 1)
+    sys.exit(0 if test_failed_count == 0 else 1)
 
 
 if __name__ == "__main__":

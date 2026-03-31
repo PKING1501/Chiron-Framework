@@ -29,6 +29,16 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by tlangParser#arrayDecl.
+    def visitArrayDecl(self, ctx:tlangParser.ArrayDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#arrayAssignment.
+    def visitArrayAssignment(self, ctx:tlangParser.ArrayAssignmentContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by tlangParser#conditional.
     def visitConditional(self, ctx:tlangParser.ConditionalContext):
         return self.visitChildren(ctx)
@@ -141,6 +151,11 @@ class tlangVisitor(ParseTreeVisitor):
 
     # Visit a parse tree produced by tlangParser#penCondition.
     def visitPenCondition(self, ctx:tlangParser.PenConditionContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#arrayAccessExpr.
+    def visitArrayAccessExpr(self, ctx:tlangParser.ArrayAccessExprContext):
         return self.visitChildren(ctx)
 
 

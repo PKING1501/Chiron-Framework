@@ -39,6 +39,35 @@ class astGenPass(tlangVisitor):
             instrList.extend(visvalue)
         return instrList
 
+    def visitArrayDecl(self, ctx: tlangParser.ArrayDeclContext):
+        var_name = ctx.VAR().getText()
+        if not var_name.startswith(':'):
+            var_name = ':' + var_name
+            
+        type_text = ctx.getChild(1).getText()
+        type_map = {
+            'int': Type.INT,
+            'float': Type.FLOAT,
+            'double': Type.DOUBLE,
+            'string': Type.STRING,
+            'boolean': Type.BOOLEAN
+        }
+        elem_type = type_map.get(type_text, Type.TYPE_ERROR)
+        
+        arr_var = ChironAST.Var(var_name, Type.UNKNOWN)
+        size_expr = ChironAST.Num(ctx.NUM().getText())
+        return [(ChironAST.ArrayAllocation(arr_var, elem_type, size_expr), 1)]
+
+    def visitArrayAssignment(self, ctx: tlangParser.ArrayAssignmentContext):
+        var_name = ctx.VAR().getText()
+        if not var_name.startswith(':'):
+            var_name = ':' + var_name
+            
+        arr_var = ChironAST.Var(var_name, Type.UNKNOWN)
+        index_expr = self.visit(ctx.expr(0))
+        value_expr = self.visit(ctx.expr(1))
+        return [(ChironAST.ArrayAssignmentCommand(arr_var, index_expr, value_expr), 1)]
+
     def visitAssignment(self, ctx: tlangParser.AssignmentContext):
         var_name = ctx.VAR().getText()
         if not var_name.startswith(':'):
@@ -246,3 +275,12 @@ class astGenPass(tlangVisitor):
 
     def visitPenCondition(self, ctx: tlangParser.PenConditionContext):
         return ChironAST.PenStatus()
+
+    def visitArrayAccessExpr(self, ctx: tlangParser.ArrayAccessExprContext):
+        var_name = ctx.VAR().getText()
+        if not var_name.startswith(':'):
+            var_name = ':' + var_name
+            
+        arr_var = ChironAST.Var(var_name, Type.UNKNOWN)
+        index_expr = self.visit(ctx.expr())
+        return ChironAST.ArrayAccess(arr_var, index_expr)
