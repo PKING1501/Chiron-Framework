@@ -179,7 +179,7 @@ class ConcreteInterpreter(Interpreter):
             raise RuntimeError(f"Error evaluating expression '{rhs_code}': {e}")
 
         # 2. Get the expected type from the left-hand side variable (from static inference)
-        expected_type = stmt.lvar.inferred_type
+        expected_type = stmt.lvar.type
         if expected_type == Type.UNKNOWN:
             # This should not happen if type inference ran successfully.
             print(f"Warning: Variable '{lhs}' has unknown type. Skipping runtime check.")

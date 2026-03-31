@@ -24,16 +24,19 @@ class TypeInference:
 
     def infer(self, ast_root):
         """Main entry point: walk the instruction list and infer types."""
+        root_type = Type.VOID
         for instr_tuple in ast_root:
             instr = instr_tuple[0]
-            self.visit(instr)
+            instr_type = self.visit(instr)
+            if instr_type == Type.TYPE_ERROR:
+                root_type = Type.TYPE_ERROR
         
         # Warn about unused input variables
         for var_name in self.input_vars:
             if var_name not in self.used_vars:
                 print(f"Warning: Input variable '{var_name}' was never used")
         
-        return len(self.errors) == 0
+        return root_type
 
     def error(self, node, message):
         """Record a type error."""
@@ -63,6 +66,7 @@ class TypeInference:
                 for item in value:
                     if isinstance(item, AST):
                         self.visit(item)
+        node.type = Type.UNKNOWN
         return Type.UNKNOWN   # ← add this line
     # ----------------------------------------------------------------------
     # Instruction nodes
@@ -77,88 +81,119 @@ class TypeInference:
         # Get the left-hand side variable
         var_node = node.lvar
         var_name = var_node.varname
-        declared_type = var_node.declared_type
 
-        # Determine the actual type to assign
-        if declared_type is not None:
-            # Check compatibility: RHS type must be assignable to declared type
-            if not self.is_assignable(rhs_type, declared_type):
-                self.error(node, f"Cannot assign {rhs_type.value} to variable '{var_name}' of type {declared_type.value}")
-                inferred = declared_type   # fallback to declared type to continue
+        # Check if variable already has an established type
+        if var_name in self.symbols:
+            established_type = self.symbols[var_name]
+            if var_node.type != Type.UNKNOWN and var_node.type != established_type:
+                self.error(node, f"Variable '{var_name}' redeclared with type {var_node.type.value}, previously {established_type.value}")
+                node.type = Type.TYPE_ERROR
+                return Type.TYPE_ERROR
+            elif not self.is_assignable(rhs_type, established_type):
+                self.error(node, f"Cannot assign {rhs_type.value} to variable '{var_name}' of type {established_type.value}")
+                node.type = Type.TYPE_ERROR
+                return Type.TYPE_ERROR
             else:
-                inferred = declared_type
+                var_node.type = established_type
+                if rhs_type != established_type:
+                    node.rexpr.type = established_type  # Promote/demote RHS expression
         else:
-            # No declaration: variable gets the RHS type (inference)
-            inferred = rhs_type
+            # First time seeing this variable
+            if var_node.type != Type.UNKNOWN:
+                if not self.is_assignable(rhs_type, var_node.type):
+                    self.error(node, f"Cannot assign {rhs_type.value} to variable '{var_name}' of declared type {var_node.type.value}")
+                    node.type = Type.TYPE_ERROR
+                    return Type.TYPE_ERROR
+                inferred = var_node.type
+                if rhs_type != var_node.type:
+                    node.rexpr.type = var_node.type  # Promote/demote RHS expression
+            else:
+                inferred = rhs_type
+            
+            # Lock in the type for this variable in the symbol table
+            self.symbols[var_name] = inferred
+            var_node.type = inferred
 
-        # Update symbol table
-        self.symbols[var_name] = inferred
-        var_node.inferred_type = inferred
-        return inferred
+        node.type = Type.VOID
+        return Type.VOID
 
     def visit_ConditionCommand(self, node):
         cond_type = self.visit(node.cond)
         if cond_type != Type.BOOLEAN:
             self.error(node, f"Condition must be boolean, got {cond_type.value}")
-        # Return type not used for instructions
-        return None
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+        node.type = Type.VOID
+        return Type.VOID
 
     def visit_MoveCommand(self, node):
         expr_type = self.visit(node.expr)
         if not expr_type.is_numeric():
             self.error(node, f"Move command requires numeric argument, got {expr_type.value}")
-        return None
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+        node.type = Type.VOID
+        return Type.VOID
 
     def visit_PenCommand(self, node):
         # No expression, always valid
-        return None
+        node.type = Type.VOID
+        return Type.VOID
 
     def visit_GotoCommand(self, node):
         x_type = self.visit(node.xcor)
         y_type = self.visit(node.ycor)
         if not x_type.is_numeric():
             self.error(node, f"goto x-coordinate must be numeric, got {x_type.value}")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
         if not y_type.is_numeric():
             self.error(node, f"goto y-coordinate must be numeric, got {y_type.value}")
-        return None
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+        node.type = Type.VOID
+        return Type.VOID
 
     def visit_NoOpCommand(self, node):
-        return None
+        node.type = Type.VOID
+        return Type.VOID
 
     def visit_PauseCommand(self, node):
-        return None
+        node.type = Type.VOID
+        return Type.VOID
 
     # ----------------------------------------------------------------------
     # Expression nodes
     # ----------------------------------------------------------------------
 
     def visit_Num(self, node):
-        # inferred_type already set by builder
-        return node.inferred_type
+        # type already set by builder
+        return node.type
 
     def visit_FloatLiteral(self, node):
-        return node.inferred_type
+        return node.type
 
     def visit_DoubleLiteral(self, node):
-        return node.inferred_type
+        return node.type
 
     def visit_StringLiteral(self, node):
-        return node.inferred_type
+        return node.type
 
     def visit_BoolLiteral(self, node):
-        return node.inferred_type
+        return node.type
 
     def visit_Var(self, node):
         var_name = node.varname
         if var_name not in self.symbols:
             self.error(node, f"Variable '{var_name}' used before assignment")
-            return Type.ERROR
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
         
         # Mark as used
         self.used_vars.add(var_name)
         
-        node.inferred_type = self.symbols[var_name]
-        return node.inferred_type
+        node.type = self.symbols[var_name]
+        return node.type
 
     # Binary arithmetic operations
     def visit_Sum(self, node):
@@ -178,14 +213,14 @@ class TypeInference:
         right_type = self.visit(right)
 
         # If either is error, propagate error
-        if left_type == Type.ERROR or right_type == Type.ERROR:
-            result_type = Type.ERROR
+        if left_type == Type.TYPE_ERROR or right_type == Type.TYPE_ERROR:
+            result_type = Type.TYPE_ERROR
 
         # String concatenation for '+' only
         elif isinstance(node, Sum) and (left_type == Type.STRING or right_type == Type.STRING):
             if left_type != Type.STRING or right_type != Type.STRING:
                 self.error(node, f"String concatenation requires both operands to be strings, got {left_type.value} and {right_type.value}")
-                result_type = Type.ERROR
+                result_type = Type.TYPE_ERROR
             else:
                 result_type = Type.STRING
 
@@ -198,7 +233,7 @@ class TypeInference:
                     result_type = self.promote_numeric(left_type, right_type)
             else:
                 self.error(node, f"Invalid operands for division: {left_type.value} and {right_type.value}")
-                result_type = Type.ERROR
+                result_type = Type.TYPE_ERROR
 
         # Other numeric operations
         elif left_type.is_numeric() and right_type.is_numeric():
@@ -206,9 +241,9 @@ class TypeInference:
 
         else:
             self.error(node, f"Invalid operands for arithmetic: {left_type.value} and {right_type.value}")
-            result_type = Type.ERROR
+            result_type = Type.TYPE_ERROR
 
-        node.inferred_type = result_type
+        node.type = result_type
         return result_type
 
     # Unary minus
@@ -218,8 +253,8 @@ class TypeInference:
             result_type = expr_type   # same type
         else:
             self.error(node, f"Unary minus requires numeric operand, got {expr_type.value}")
-            result_type = Type.ERROR
-        node.inferred_type = result_type
+            result_type = Type.TYPE_ERROR
+        node.type = result_type
         return result_type
 
     # Boolean binary operators
@@ -236,8 +271,8 @@ class TypeInference:
             result_type = Type.BOOLEAN
         else:
             self.error(node, f"Logical operator requires boolean operands, got {left_type.value} and {right_type.value}")
-            result_type = Type.ERROR
-        node.inferred_type = result_type
+            result_type = Type.TYPE_ERROR
+        node.type = result_type
         return result_type
 
     # Comparison operators
@@ -274,8 +309,8 @@ class TypeInference:
         else:
             self.error(node, f"Cannot compare {left_type.value} and {right_type.value}")
 
-        result_type = Type.BOOLEAN if comparable else Type.ERROR
-        node.inferred_type = result_type
+        result_type = Type.BOOLEAN if comparable else Type.TYPE_ERROR
+        node.type = result_type
         return result_type
 
     def visit_NOT(self, node):
@@ -284,20 +319,20 @@ class TypeInference:
             result_type = Type.BOOLEAN
         else:
             self.error(node, f"NOT requires boolean operand, got {expr_type.value}")
-            result_type = Type.ERROR
-        node.inferred_type = result_type
+            result_type = Type.TYPE_ERROR
+        node.type = result_type
         return result_type
 
     def visit_PenStatus(self, node):
-        node.inferred_type = Type.BOOLEAN
+        node.type = Type.BOOLEAN
         return Type.BOOLEAN
 
     def visit_BoolTrue(self, node):
-        node.inferred_type = Type.BOOLEAN
+        node.type = Type.BOOLEAN
         return Type.BOOLEAN
 
     def visit_BoolFalse(self, node):
-        node.inferred_type = Type.BOOLEAN
+        node.type = Type.BOOLEAN
         return Type.BOOLEAN
 
     # ----------------------------------------------------------------------

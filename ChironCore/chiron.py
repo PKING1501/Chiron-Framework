@@ -254,14 +254,16 @@ if __name__ == "__main__":
             inferencer.add_input_variable(var_name, var_type)
             print(f"Input variable: {var_name} with type {var_type.value}")  # debug
 
-        success = inferencer.infer(ir)
-        if not success:
-            print("\nType errors found:")
+        root_type = inferencer.infer(ir)
+        if root_type == Type.TYPE_ERROR:
+            print(f"\nType Checking Failed: Root Evaluate to {root_type.value.upper()}")
+            print("Type errors found:")
             for err in inferencer.errors:
                 print(f"  {err}")
             print("\nExecution aborted due to type errors.")
             sys.exit(1)
         else:
+            print(f"Type Checking Passed: Root Evaluated to {root_type.value.upper()}")
             print("Type inference completed successfully. No type errors found.")
     
     # ------------------------

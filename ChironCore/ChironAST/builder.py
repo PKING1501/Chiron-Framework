@@ -41,6 +41,9 @@ class astGenPass(tlangVisitor):
 
     def visitAssignment(self, ctx: tlangParser.AssignmentContext):
         var_name = ctx.VAR().getText()
+        if not var_name.startswith(':'):
+            var_name = ':' + var_name
+        
         declared_type = None
 
         # Check if a type annotation exists
@@ -53,7 +56,7 @@ class astGenPass(tlangVisitor):
                 'string': Type.STRING,
                 'boolean': Type.BOOLEAN
             }
-            declared_type = type_map.get(type_text, Type.ERROR)
+            declared_type = type_map.get(type_text, Type.TYPE_ERROR)
 
         lval = ChironAST.Var(var_name, declared_type)
         rval = self.visit(ctx.expr())          # changed from ctx.expression()
@@ -113,27 +116,27 @@ class astGenPass(tlangVisitor):
 
     def visitNumValue(self, ctx):
         node = ChironAST.Num(ctx.NUM().getText())
-        node.inferred_type = Type.INT
+        node.type = Type.INT
         return node
 
     def visitFloatValue(self, ctx):
         node = ChironAST.FloatLiteral(ctx.FLOAT().getText())
-        node.inferred_type = Type.FLOAT
+        node.type = Type.FLOAT
         return node
 
     def visitDoubleValue(self, ctx):
         node = ChironAST.DoubleLiteral(ctx.DOUBLE().getText())
-        node.inferred_type = Type.DOUBLE
+        node.type = Type.DOUBLE
         return node
 
     def visitStringValue(self, ctx):
         node = ChironAST.StringLiteral(ctx.STRING().getText())
-        node.inferred_type = Type.STRING
+        node.type = Type.STRING
         return node
 
     def visitBooleanValue(self, ctx):
         node = ChironAST.BoolLiteral(ctx.BOOLEAN().getText())
-        node.inferred_type = Type.BOOLEAN
+        node.type = Type.BOOLEAN
         return node
 
     def visitVarValue(self, ctx):
@@ -142,7 +145,7 @@ class astGenPass(tlangVisitor):
         if not raw.startswith(':'):
             raw = ':' + raw
         node = ChironAST.Var(raw)
-        node.inferred_type = Type.UNKNOWN
+        node.type = Type.UNKNOWN
         return node
 
     # ----------------------------------------------------------------------

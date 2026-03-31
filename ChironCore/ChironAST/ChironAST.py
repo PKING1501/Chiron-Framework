@@ -4,7 +4,8 @@
 from chirontypes import Type
 
 class AST(object):
-    pass
+    def __init__(self):
+        self.type = Type.UNKNOWN
 
 
 # --Instruction Classes-----------------------------------------------
@@ -77,7 +78,8 @@ class PauseCommand(Instruction):
 
 class Expression(AST):
     def __init__(self):
-        self.inferred_type = Type.UNKNOWN
+        super().__init__()
+        self.type = Type.UNKNOWN
 
 
 # --Arithmetic Expressions--------------------------------------------
@@ -203,9 +205,8 @@ class PenStatus(BoolExpr):
 
 class BoolTrue(BoolExpr):
     def __init__(self):
-        pass
-        # super().__init__()
-        # self.inferred_type = Type.BOOLEAN
+        super().__init__()
+        self.type = Type.BOOLEAN
 
     def __str__(self):
         return "True"
@@ -213,9 +214,8 @@ class BoolTrue(BoolExpr):
 
 class BoolFalse(BoolExpr):
     def __init__(self):
-        pass
-        # super().__init__()
-        # self.inferred_type = Type.BOOLEAN
+        super().__init__()
+        self.type = Type.BOOLEAN
 
     def __str__(self):
         return "False"
@@ -229,18 +229,17 @@ class Num(Value):
     def __init__(self, v):
         super().__init__()
         self.val = int(v)
-        self.inferred_type = Type.INT
+        self.type = Type.INT
 
     def __str__(self):
         return str(self.val)
 
 
 class Var(Value):
-    def __init__(self, vname, declared_type=None):          # ← add declared_type parameter
+    def __init__(self, vname, declared_type=None):
         super().__init__()
         self.varname = vname
-        self.declared_type = declared_type                  # ← new attribute
-        self.inferred_type = Type.UNKNOWN
+        self.type = declared_type if declared_type else Type.UNKNOWN
 
     def __str__(self):
         return self.varname
@@ -251,7 +250,7 @@ class FloatLiteral(Value):
         super().__init__()
         v_clean = v.rstrip('fF')
         self.val = float(v_clean)
-        self.inferred_type = Type.FLOAT
+        self.type = Type.FLOAT
 
     def __str__(self):
         return str(self.val)
@@ -261,7 +260,7 @@ class DoubleLiteral(Value):
         super().__init__()
         v_clean = v.rstrip('dD')
         self.val = float(v_clean)
-        self.inferred_type = Type.DOUBLE
+        self.type = Type.DOUBLE
 
     def __str__(self):
         return str(self.val)
@@ -271,7 +270,7 @@ class StringLiteral(Value):
     def __init__(self, v):
         super().__init__()
         self.val = v[1:-1]  # strip quotes
-        self.inferred_type = Type.STRING
+        self.type = Type.STRING
     
     def __str__(self):
         return '"' + self.val + '"'
@@ -281,7 +280,7 @@ class BoolLiteral(Value):
     def __init__(self, v):
         super().__init__()
         self.val = (v.lower() == "true")
-        self.inferred_type = Type.BOOLEAN
+        self.type = Type.BOOLEAN
     
     def __str__(self):
         return str(self.val)

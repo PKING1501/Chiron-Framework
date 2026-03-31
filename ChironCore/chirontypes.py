@@ -7,7 +7,9 @@ class Type(Enum):
     STRING = "string"
     BOOLEAN = "boolean"
     UNKNOWN = "unknown"
-    ERROR = "error"
+    # ERROR = "error"
+    TYPE_ERROR = "type_error"
+    VOID = "void"
     
     def is_numeric(self):
         return self in [Type.INT, Type.FLOAT, Type.DOUBLE]
