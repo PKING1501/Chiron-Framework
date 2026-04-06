@@ -50,7 +50,8 @@ class astGenPass(tlangVisitor):
             'float': Type.FLOAT,
             'double': Type.DOUBLE,
             'string': Type.STRING,
-            'boolean': Type.BOOLEAN
+            'boolean': Type.BOOLEAN,
+            'unknown': Type.UNKNOWN
         }
         elem_type = type_map.get(type_text, Type.TYPE_ERROR)
         
@@ -83,7 +84,8 @@ class astGenPass(tlangVisitor):
                 'float': Type.FLOAT,
                 'double': Type.DOUBLE,
                 'string': Type.STRING,
-                'boolean': Type.BOOLEAN
+                'boolean': Type.BOOLEAN,
+                'unknown': Type.UNKNOWN
             }
             declared_type = type_map.get(type_text, Type.TYPE_ERROR)
 
@@ -275,6 +277,20 @@ class astGenPass(tlangVisitor):
 
     def visitPenCondition(self, ctx: tlangParser.PenConditionContext):
         return ChironAST.PenStatus()
+
+    def visitCastExpr(self, ctx: tlangParser.CastExprContext):
+        type_text = ctx.type_().getText()
+        type_map = {
+            'int': Type.INT,
+            'float': Type.FLOAT,
+            'double': Type.DOUBLE,
+            'string': Type.STRING,
+            'boolean': Type.BOOLEAN,
+            'unknown': Type.UNKNOWN
+        }
+        target_type = type_map.get(type_text, Type.TYPE_ERROR)
+        expr = self.visit(ctx.primary())
+        return ChironAST.Cast(target_type, expr)
 
     def visitArrayAccessExpr(self, ctx: tlangParser.ArrayAccessExprContext):
         var_name = ctx.VAR().getText()

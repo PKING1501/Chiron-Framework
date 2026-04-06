@@ -180,6 +180,8 @@ class TypeInference:
             if var_node.type != Type.UNKNOWN:
                 if not self.is_assignable(rhs_type, var_node.type):
                     self.error(node, f"Cannot assign {rhs_type.value} to variable '{var_name}' of declared type {var_node.type.value}")
+                    # Register it anyway to avoid "used before assignment" errors
+                    self.symbols[var_name] = var_node.type
                     node.type = Type.TYPE_ERROR
                     return Type.TYPE_ERROR
                 inferred = var_node.type
@@ -412,6 +414,33 @@ class TypeInference:
     def visit_BoolFalse(self, node):
         node.type = Type.BOOLEAN
         return Type.BOOLEAN
+
+    def visit_Cast(self, node):
+        expr_type = self.visit(node.expr)
+        target_type = node.target_type
+
+        if expr_type == Type.TYPE_ERROR:
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+
+        # Validity Checks
+        valid = False
+        if expr_type == target_type:
+            valid = True
+        elif expr_type.is_numeric() and target_type.is_numeric():
+            valid = True
+        elif target_type == Type.STRING:
+            valid = True
+        elif expr_type == Type.UNKNOWN or target_type == Type.UNKNOWN:
+            valid = True
+        
+        if not valid:
+            self.error(node, f"Invalid cast from {expr_type.value} to {target_type.value}")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+
+        node.type = target_type
+        return target_type
 
     # ----------------------------------------------------------------------
     # Helper methods

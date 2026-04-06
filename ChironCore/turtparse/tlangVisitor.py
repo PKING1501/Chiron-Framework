@@ -149,6 +149,11 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by tlangParser#castExpr.
+    def visitCastExpr(self, ctx:tlangParser.CastExprContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by tlangParser#penCondition.
     def visitPenCondition(self, ctx:tlangParser.PenConditionContext):
         return self.visitChildren(ctx)

@@ -40,7 +40,7 @@ assignment : VAR typeAnnotation? '=' expr ;                // changed from expre
 
 typeAnnotation : type ;
 
-type : 'int' | 'float' | 'double' | 'string' | 'boolean' ;
+type : 'int' | 'float' | 'double' | 'string' | 'boolean' | 'unknown' ;
 
 moveCommand : moveOp expr ;                                // changed
 moveOp : 'forward' | 'backward' | 'left' | 'right' ;
@@ -61,6 +61,7 @@ multiplicativeExpr : unaryExpr ( ( MUL | DIV ) unaryExpr )* ;
 unaryExpr : ( MINUS | NOT )? primary ;
 primary : value                  #primaryValue
         | '(' expr ')'           #parenExpr
+        | '(' type ')' primary   #castExpr
         | PENCOND                #penCondition
         | VAR '[' expr ']'       #arrayAccessExpr
         ;

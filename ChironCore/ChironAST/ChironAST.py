@@ -99,6 +99,23 @@ class Expression(AST):
         super().__init__()
         self.type = Type.UNKNOWN
 
+class Cast(Expression):
+    def __init__(self, target_type, expr):
+        super().__init__()
+        self.target_type = target_type
+        self.expr = expr
+
+    def __str__(self):
+        type_map = {
+            Type.INT: "int",
+            Type.FLOAT: "float",
+            Type.DOUBLE: "float",
+            Type.STRING: "str",
+            Type.BOOLEAN: "bool"
+        }
+        func = type_map.get(self.target_type, "id")
+        return f"{func}({self.expr.__str__()})"
+
 
 # --Arithmetic Expressions--------------------------------------------
 
