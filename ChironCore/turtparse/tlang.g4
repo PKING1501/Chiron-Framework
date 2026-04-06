@@ -40,7 +40,7 @@ assignment : VAR typeAnnotation? '=' expr ;                // changed from expre
 
 typeAnnotation : type ;
 
-type : 'int' | 'float' | 'double' | 'string' | 'boolean' | 'unknown' ;
+type : 'int' | 'float' | 'double' | 'string' | 'boolean' ;
 
 moveCommand : moveOp expr ;                                // changed
 moveOp : 'forward' | 'backward' | 'left' | 'right' ;

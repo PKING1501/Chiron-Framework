@@ -282,6 +282,7 @@ class Var(Value):
         super().__init__()
         self.varname = vname
         self.type = declared_type if declared_type else Type.UNKNOWN
+        self.is_explicit = declared_type is not None
 
     def __str__(self):
         return self.varname

@@ -177,7 +177,7 @@ class TypeInference:
                     node.rexpr.type = established_type  # Promote/demote RHS expression
         else:
             # First time seeing this variable
-            if var_node.type != Type.UNKNOWN:
+            if var_node.is_explicit:
                 if not self.is_assignable(rhs_type, var_node.type):
                     self.error(node, f"Cannot assign {rhs_type.value} to variable '{var_name}' of declared type {var_node.type.value}")
                     # Register it anyway to avoid "used before assignment" errors
@@ -430,8 +430,6 @@ class TypeInference:
         elif expr_type.is_numeric() and target_type.is_numeric():
             valid = True
         elif target_type == Type.STRING:
-            valid = True
-        elif expr_type == Type.UNKNOWN or target_type == Type.UNKNOWN:
             valid = True
         
         if not valid:

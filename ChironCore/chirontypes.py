@@ -16,7 +16,7 @@ class Type(Enum):
     
     def is_subtype_of(self, other):
         """Check if this type is a subtype of another type"""
-        if self == other or other == Type.UNKNOWN:
+        if self == other:
             return True
         
         promotions = {

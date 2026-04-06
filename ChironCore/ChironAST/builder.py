@@ -50,8 +50,7 @@ class astGenPass(tlangVisitor):
             'float': Type.FLOAT,
             'double': Type.DOUBLE,
             'string': Type.STRING,
-            'boolean': Type.BOOLEAN,
-            'unknown': Type.UNKNOWN
+            'boolean': Type.BOOLEAN
         }
         elem_type = type_map.get(type_text, Type.TYPE_ERROR)
         
@@ -84,8 +83,7 @@ class astGenPass(tlangVisitor):
                 'float': Type.FLOAT,
                 'double': Type.DOUBLE,
                 'string': Type.STRING,
-                'boolean': Type.BOOLEAN,
-                'unknown': Type.UNKNOWN
+                'boolean': Type.BOOLEAN
             }
             declared_type = type_map.get(type_text, Type.TYPE_ERROR)
 
@@ -285,8 +283,7 @@ class astGenPass(tlangVisitor):
             'float': Type.FLOAT,
             'double': Type.DOUBLE,
             'string': Type.STRING,
-            'boolean': Type.BOOLEAN,
-            'unknown': Type.UNKNOWN
+            'boolean': Type.BOOLEAN
         }
         target_type = type_map.get(type_text, Type.TYPE_ERROR)
         expr = self.visit(ctx.primary())
