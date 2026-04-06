@@ -14,8 +14,11 @@ class Type(Enum):
     def is_numeric(self):
         return self in [Type.INT, Type.FLOAT, Type.DOUBLE]
     
-    def can_promote_to(self, other):
-        """Check if this type can be promoted to another type"""
+    def is_subtype_of(self, other):
+        """Check if this type is a subtype of another type"""
+        if self == other or other == Type.UNKNOWN:
+            return True
+        
         promotions = {
             Type.INT: [Type.FLOAT, Type.DOUBLE],
             Type.FLOAT: [Type.DOUBLE],
@@ -36,5 +39,7 @@ class ArrayType:
     def is_numeric(self):
         return False
         
-    def can_promote_to(self, other):
+    def is_subtype_of(self, other):
+        # if self == other or other == Type.UNKNOWN:
+        #     return True
         return False

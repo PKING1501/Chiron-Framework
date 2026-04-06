@@ -419,14 +419,10 @@ class TypeInference:
 
     def is_assignable(self, source_type, target_type):
         """Check if source_type can be assigned to target_type."""
-        if source_type == target_type:
-            return True
-        # Numeric promotions
-        if source_type.is_numeric() and target_type.is_numeric():
-            # Allow promotion to wider type (e.g., int -> float, int -> double, float -> double)
-            return target_type in [Type.FLOAT, Type.DOUBLE] and source_type.can_promote_to(target_type)
-        # No other implicit conversions (e.g., no int->string)
-        return False
+        # Check subtyping relationship
+        if hasattr(source_type, 'is_subtype_of'):
+            return source_type.is_subtype_of(target_type)
+        return source_type == target_type
 
     def promote_numeric(self, t1, t2):
         """Return the common numeric type after promotion (wider wins)."""
