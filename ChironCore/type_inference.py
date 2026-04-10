@@ -73,14 +73,20 @@ class TypeInference:
     # ----------------------------------------------------------------------
 
     def visit_ArrayAllocation(self, node):
-        size_type = self.visit(node.size)
-        if size_type != Type.INT:
-            self.error(node, f"Array size must be an integer, got {size_type.value}")
-            node.type = Type.TYPE_ERROR
-            return Type.TYPE_ERROR
+        for sNode in node.sizes:
+            size_type = self.visit(sNode)
+            if size_type != Type.INT:
+                self.error(node, f"Array size must be an integer, got {size_type.value}")
+                node.type = Type.TYPE_ERROR
+                return Type.TYPE_ERROR
             
         var_name = node.avar.varname
-        array_type = ArrayType(node.elem_type, node.size.val)
+        
+        # Build nested ArrayType: int[5][10] is ArrayType(ArrayType(INT, 10), 5)
+        # We wrap from the last dimension inwards
+        array_type = node.elem_type
+        for size_node in reversed(node.sizes):
+            array_type = ArrayType(array_type, size_node.val)
         
         # Check if already declared
         if var_name in self.symbols:
@@ -100,28 +106,30 @@ class TypeInference:
             node.type = Type.TYPE_ERROR
             return Type.TYPE_ERROR
             
-        arr_type = self.symbols[var_name]
-        if not isinstance(arr_type, ArrayType):
-            self.error(node, f"Variable '{var_name}' is not an array")
-            node.type = Type.TYPE_ERROR
-            return Type.TYPE_ERROR
-            
-        index_type = self.visit(node.index)
-        if index_type != Type.INT:
-            self.error(node, f"Array index must be an integer, got {index_type.value}")
-            node.type = Type.TYPE_ERROR
-            return Type.TYPE_ERROR
+        curr_type = self.symbols[var_name]
+        for idx_node in node.indices:
+            if not isinstance(curr_type, ArrayType):
+                self.error(node, f"Too many indices for variable '{var_name}'")
+                node.type = Type.TYPE_ERROR
+                return Type.TYPE_ERROR
+                
+            idx_type = self.visit(idx_node)
+            if idx_type != Type.INT:
+                self.error(node, f"Array index must be an integer, got {idx_type.value}")
+                node.type = Type.TYPE_ERROR
+                return Type.TYPE_ERROR
+            curr_type = curr_type.element_type
             
         rhs_type = self.visit(node.rexpr)
-        if not self.is_assignable(rhs_type, arr_type.element_type):
-            self.error(node, f"Cannot assign {rhs_type.value} to array '{var_name}' of element type {arr_type.element_type.value}")
+        if not self.is_assignable(rhs_type, curr_type):
+            self.error(node, f"Cannot assign {rhs_type.value} to array '{var_name}' of element type {curr_type.value}")
             node.type = Type.TYPE_ERROR
             return Type.TYPE_ERROR
             
-        if rhs_type != arr_type.element_type:
-            node.rexpr.type = arr_type.element_type  # Promote/demote expression explicitly to match Array type
+        if rhs_type != curr_type:
+            node.rexpr.type = curr_type  # Promote/demote expression explicitly
 
-        node.avar.type = arr_type
+        node.avar.type = self.symbols[var_name] # Root type
         node.type = Type.VOID
         return Type.VOID
 
@@ -132,23 +140,25 @@ class TypeInference:
             node.type = Type.TYPE_ERROR
             return Type.TYPE_ERROR
             
-        arr_type = self.symbols[var_name]
-        if not isinstance(arr_type, ArrayType):
-            self.error(node, f"Variable '{var_name}' is not an array")
-            node.type = Type.TYPE_ERROR
-            return Type.TYPE_ERROR
+        curr_type = self.symbols[var_name]
+        for idx_node in node.indices:
+            if not isinstance(curr_type, ArrayType):
+                self.error(node, f"Too many indices for variable '{var_name}'")
+                node.type = Type.TYPE_ERROR
+                return Type.TYPE_ERROR
+                
+            idx_type = self.visit(idx_node)
+            if idx_type != Type.INT:
+                self.error(node, f"Array index must be an integer, got {idx_type.value}")
+                node.type = Type.TYPE_ERROR
+                return Type.TYPE_ERROR
+            curr_type = curr_type.element_type
             
-        index_type = self.visit(node.index)
-        if index_type != Type.INT:
-            self.error(node, f"Array index must be an integer, got {index_type.value}")
-            node.type = Type.TYPE_ERROR
-            return Type.TYPE_ERROR
-            
-        node.avar.type = arr_type
+        node.avar.type = self.symbols[var_name]
         self.used_vars.add(var_name)
         
-        node.type = arr_type.element_type
-        return arr_type.element_type
+        node.type = curr_type
+        return curr_type
 
     def visit_AssignmentCommand(self, node):
         # First visit the right-hand side expression (to infer its type)
@@ -177,7 +187,7 @@ class TypeInference:
                     node.rexpr.type = established_type  # Promote/demote RHS expression
         else:
             # First time seeing this variable
-            if var_node.is_explicit:
+            if var_node.type != Type.UNKNOWN:
                 if not self.is_assignable(rhs_type, var_node.type):
                     self.error(node, f"Cannot assign {rhs_type.value} to variable '{var_name}' of declared type {var_node.type.value}")
                     # Register it anyway to avoid "used before assignment" errors

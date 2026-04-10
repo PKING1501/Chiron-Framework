@@ -29,7 +29,13 @@ class ArrayType:
     def __init__(self, element_type, size):
         self.element_type = element_type
         self.size = size
-        self.value = f"{element_type.value}[{size}]"
+        if isinstance(element_type, ArrayType):
+            # If element_type is int[10], and size is 5, it becomes int[5][10]
+            base_type_str = element_type.value.split('[')[0]
+            existing_dims = element_type.value[len(base_type_str):]
+            self.value = f"{base_type_str}[{size}]{existing_dims}"
+        else:
+            self.value = f"{element_type.value}[{size}]"
         
     def __eq__(self, other):
         if not isinstance(other, ArrayType):

@@ -24,8 +24,8 @@ instruction : assignment
             | pauseCommand
             ;
 
-arrayDecl : VAR type '[' NUM ']' ;
-arrayAssignment : VAR '[' expr ']' '=' expr ;
+arrayDecl : VAR type ('[' NUM ']')+ ;
+arrayAssignment : VAR ('[' expr ']')+ '=' expr ;
 
 conditional : ifConditional | ifElseConditional ;
 
@@ -63,7 +63,7 @@ primary : value                  #primaryValue
         | '(' expr ')'           #parenExpr
         | '(' type ')' primary   #castExpr
         | PENCOND                #penCondition
-        | VAR '[' expr ']'       #arrayAccessExpr
+        | VAR ('[' expr ']')+    #arrayAccessExpr
         ;
 
 value : NUM          #numValue

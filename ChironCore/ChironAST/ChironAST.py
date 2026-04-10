@@ -23,22 +23,24 @@ class AssignmentCommand(Instruction):
         return self.lvar.__str__() + " = " + self.rexpr.__str__()
 
 class ArrayAllocation(Instruction):
-    def __init__(self, arr_var, elem_type, size):
+    def __init__(self, arr_var, elem_type, sizes):
         self.avar = arr_var
         self.elem_type = elem_type
-        self.size = size
+        self.sizes = sizes
 
     def __str__(self):
-        return self.avar.__str__() + " " + self.elem_type.value + "[" + self.size.__str__() + "]"
+        dims = "".join(["[" + s.__str__() + "]" for s in self.sizes])
+        return self.avar.__str__() + " " + self.elem_type.value + dims
 
 class ArrayAssignmentCommand(Instruction):
-    def __init__(self, arr_var, index, rexpr):
+    def __init__(self, arr_var, indices, rexpr):
         self.avar = arr_var
-        self.index = index
+        self.indices = indices
         self.rexpr = rexpr
 
     def __str__(self):
-        return self.avar.__str__() + "[" + self.index.__str__() + "] = " + self.rexpr.__str__()
+        dims = "".join(["[" + i.__str__() + "]" for i in self.indices])
+        return self.avar.__str__() + dims + " = " + self.rexpr.__str__()
 
 
 class ConditionCommand(Instruction):
@@ -260,13 +262,14 @@ class Value(Expression):
     pass
 
 class ArrayAccess(Value):
-    def __init__(self, arr_var, index):
+    def __init__(self, arr_var, indices):
         super().__init__()
         self.avar = arr_var
-        self.index = index
+        self.indices = indices
 
     def __str__(self):
-        return self.avar.__str__() + "[" + self.index.__str__() + "]"
+        dims = "".join(["[" + i.__str__() + "]" for i in self.indices])
+        return self.avar.__str__() + dims
 class Num(Value):
     def __init__(self, v):
         super().__init__()
@@ -282,7 +285,6 @@ class Var(Value):
         super().__init__()
         self.varname = vname
         self.type = declared_type if declared_type else Type.UNKNOWN
-        self.is_explicit = declared_type is not None
 
     def __str__(self):
         return self.varname

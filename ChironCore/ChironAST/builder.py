@@ -55,8 +55,8 @@ class astGenPass(tlangVisitor):
         elem_type = type_map.get(type_text, Type.TYPE_ERROR)
         
         arr_var = ChironAST.Var(var_name, Type.UNKNOWN)
-        size_expr = ChironAST.Num(ctx.NUM().getText())
-        return [(ChironAST.ArrayAllocation(arr_var, elem_type, size_expr), 1)]
+        sizes = [ChironAST.Num(n.getText()) for n in ctx.NUM()]
+        return [(ChironAST.ArrayAllocation(arr_var, elem_type, sizes), 1)]
 
     def visitArrayAssignment(self, ctx: tlangParser.ArrayAssignmentContext):
         var_name = ctx.VAR().getText()
@@ -64,9 +64,10 @@ class astGenPass(tlangVisitor):
             var_name = ':' + var_name
             
         arr_var = ChironAST.Var(var_name, Type.UNKNOWN)
-        index_expr = self.visit(ctx.expr(0))
-        value_expr = self.visit(ctx.expr(1))
-        return [(ChironAST.ArrayAssignmentCommand(arr_var, index_expr, value_expr), 1)]
+        all_exprs = [self.visit(e) for e in ctx.expr()]
+        indices = all_exprs[:-1]
+        value_expr = all_exprs[-1]
+        return [(ChironAST.ArrayAssignmentCommand(arr_var, indices, value_expr), 1)]
 
     def visitAssignment(self, ctx: tlangParser.AssignmentContext):
         var_name = ctx.VAR().getText()
@@ -295,5 +296,5 @@ class astGenPass(tlangVisitor):
             var_name = ':' + var_name
             
         arr_var = ChironAST.Var(var_name, Type.UNKNOWN)
-        index_expr = self.visit(ctx.expr())
-        return ChironAST.ArrayAccess(arr_var, index_expr)
+        indices = [self.visit(e) for e in ctx.expr()]
+        return ChironAST.ArrayAccess(arr_var, indices)

@@ -1,7 +1,7 @@
 
 from ChironAST import ChironAST
 from ChironHooks import Chironhooks
-from chirontypes import Type
+from chirontypes import Type, ArrayType
 import turtle
 
 Release="Chiron v5.3"
@@ -155,25 +155,39 @@ class ConcreteInterpreter(Interpreter):
     def handleArrayAllocation(self, stmt, tgt):
         print("  Array Allocation")
         lhs = str(stmt.avar).replace(":", "")
-        size_expr = addContext(stmt.size)
-        exec(f"self.prg.{lhs} = [None] * ({size_expr})")
+        
+        # Build nested list initialization: for [5][10], it becomes [[None]*10 for _ in range(5)]
+        def create_multi_dim(sizes_exprs):
+            if len(sizes_exprs) == 1:
+                return f"[None] * ({sizes_exprs[0]})"
+            else:
+                return f"[{create_multi_dim(sizes_exprs[1:])} for _ in range({sizes_exprs[0]})]"
+        
+        sizes_exprs = [addContext(s) for s in stmt.sizes]
+        alloc_expr = create_multi_dim(sizes_exprs)
+        
+        exec(f"self.prg.{lhs} = {alloc_expr}")
         return 1
 
     def handleArrayAssignment(self, stmt, tgt):
         print("  Array Assignment Statement")
         lhs_var = str(stmt.avar).replace(":", "")
-        idx_expr = addContext(stmt.index)
+        indices_str = "".join([f"[{addContext(i)}]" for i in stmt.indices])
         rhs_expr = addContext(stmt.rexpr)
         
-        elem_t = stmt.avar.type.element_type
-        if elem_t in [Type.FLOAT, Type.DOUBLE]:
+        # Get the leaf element type (drill down through ArrayTypes)
+        curr_t = stmt.avar.type
+        while isinstance(curr_t, ArrayType):
+            curr_t = curr_t.element_type
+            
+        if curr_t in [Type.FLOAT, Type.DOUBLE]:
             rhs_expr = f"float({rhs_expr})"
-        elif elem_t == Type.INT:
+        elif curr_t == Type.INT:
             rhs_expr = f"int({rhs_expr})"
-        elif elem_t == Type.STRING:
+        elif curr_t == Type.STRING:
             rhs_expr = f"str({rhs_expr})"
             
-        exec(f"self.prg.{lhs_var}[{idx_expr}] = {rhs_expr}")
+        exec(f"self.prg.{lhs_var}{indices_str} = {rhs_expr}")
         return 1
 
     def handleCondition(self, stmt, tgt):
