@@ -29,6 +29,21 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by tlangParser#structDecl.
+    def visitStructDecl(self, ctx:tlangParser.StructDeclContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#fieldAssignment.
+    def visitFieldAssignment(self, ctx:tlangParser.FieldAssignmentContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#arrayAccess.
+    def visitArrayAccess(self, ctx:tlangParser.ArrayAccessContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by tlangParser#arrayDecl.
     def visitArrayDecl(self, ctx:tlangParser.ArrayDeclContext):
         return self.visitChildren(ctx)
@@ -144,8 +159,8 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#parenExpr.
-    def visitParenExpr(self, ctx:tlangParser.ParenExprContext):
+    # Visit a parse tree produced by tlangParser#arrayAccessExpr.
+    def visitArrayAccessExpr(self, ctx:tlangParser.ArrayAccessExprContext):
         return self.visitChildren(ctx)
 
 
@@ -154,13 +169,23 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#penCondition.
-    def visitPenCondition(self, ctx:tlangParser.PenConditionContext):
+    # Visit a parse tree produced by tlangParser#fieldAccessExpr.
+    def visitFieldAccessExpr(self, ctx:tlangParser.FieldAccessExprContext):
         return self.visitChildren(ctx)
 
 
-    # Visit a parse tree produced by tlangParser#arrayAccessExpr.
-    def visitArrayAccessExpr(self, ctx:tlangParser.ArrayAccessExprContext):
+    # Visit a parse tree produced by tlangParser#parenExpr.
+    def visitParenExpr(self, ctx:tlangParser.ParenExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#structLiteralExpr.
+    def visitStructLiteralExpr(self, ctx:tlangParser.StructLiteralExprContext):
+        return self.visitChildren(ctx)
+
+
+    # Visit a parse tree produced by tlangParser#penCondition.
+    def visitPenCondition(self, ctx:tlangParser.PenConditionContext):
         return self.visitChildren(ctx)
 
 

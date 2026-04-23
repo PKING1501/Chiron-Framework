@@ -16,6 +16,8 @@ strict_ilist : (instruction)+
 instruction : assignment
             | arrayDecl
             | arrayAssignment
+            | structDecl
+            | fieldAssignment
             | conditional
             | loop
             | moveCommand
@@ -23,6 +25,10 @@ instruction : assignment
             | gotoCommand
             | pauseCommand
             ;
+
+structDecl : 'struct' NAME '{' (NAME type (',' NAME type)*)? '}' ;
+fieldAssignment : (VAR | arrayAccess) ('.' NAME)+ '=' expr ;
+arrayAccess : VAR ('[' expr ']')+ ;
 
 arrayDecl : VAR type ('[' NUM ']')+ ;
 arrayAssignment : VAR ('[' expr ']')+ '=' expr ;
@@ -40,7 +46,7 @@ assignment : VAR typeAnnotation? '=' expr ;                // changed from expre
 
 typeAnnotation : type ;
 
-type : 'int' | 'float' | 'double' | 'string' | 'boolean' ;
+type : 'int' | 'float' | 'double' | 'string' | 'boolean' | NAME ;
 
 moveCommand : moveOp expr ;                                // changed
 moveOp : 'forward' | 'backward' | 'left' | 'right' ;
@@ -64,6 +70,8 @@ primary : value                  #primaryValue
         | '(' type ')' primary   #castExpr
         | PENCOND                #penCondition
         | VAR ('[' expr ']')+    #arrayAccessExpr
+        | primary '.' NAME       #fieldAccessExpr
+        | '{' expr (',' expr)* '}' #structLiteralExpr
         ;
 
 value : NUM          #numValue
@@ -98,8 +106,8 @@ FLOAT : [0-9]+ '.' [0-9]+ [fF] ;
 DOUBLE : [0-9]+ '.' [0-9]+ ([dD])? | [0-9]+ [dD] ;
 STRING : '"' (~["\r\n\\] | '\\' .)* '"' ;
 BOOLEAN : 'true' | 'false' ;
-VAR  : ':'?[a-zA-Z_] [a-zA-Z_0-9]* ;
-NAME : [a-zA-Z]+ ;
+VAR  : ':' [a-zA-Z_] [a-zA-Z0-9]* ('_' [a-zA-Z0-9]+)* ;
+NAME : [a-zA-Z_] [a-zA-Z0-9]* ;
 
 LINE_COMMENT : '//' ~[\r\n]* -> skip ;
 BLOCK_COMMENT : '/*' .*? '*/' -> skip ;

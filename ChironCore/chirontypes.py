@@ -49,3 +49,26 @@ class ArrayType:
         # if self == other or other == Type.UNKNOWN:
         #     return True
         return False
+
+class StructType:
+    def __init__(self, name, fields):
+        """
+        :param name: Name of the struct
+        :param fields: Dictionary mapping field names to their Types
+        """
+        self.name = name
+        self.fields = fields
+        # Value string representation for logging/debugging
+        fields_str = ", ".join([f"{n}: {t.value if hasattr(t, 'value') else str(t)}" for n, t in fields.items()])
+        self.value = f"struct {name} {{{fields_str}}}"
+
+    def __eq__(self, other):
+        if not isinstance(other, StructType):
+            return False
+        return self.name == other.name and self.fields == other.fields
+
+    def is_numeric(self):
+        return False
+
+    def is_subtype_of(self, other):
+        return self == other

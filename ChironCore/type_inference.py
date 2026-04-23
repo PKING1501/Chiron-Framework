@@ -15,6 +15,7 @@ class TypeInference:
         self.input_vars = set()    # variables that come from command line
         self.used_vars = set()
         self.errors = []            # list of error messages
+        self.struct_definitions = {}   # struct name -> StructType
         self.current_function = None   # not used (no functions yet)
 
     def add_input_variable(self, var_name, var_type):
@@ -85,6 +86,14 @@ class TypeInference:
         # Build nested ArrayType: int[5][10] is ArrayType(ArrayType(INT, 10), 5)
         # We wrap from the last dimension inwards
         array_type = node.elem_type
+        if isinstance(array_type, str):
+            # Resolve struct name
+            if array_type not in self.struct_definitions:
+                self.error(node, f"Unknown type '{array_type}' for array elements")
+                node.type = Type.TYPE_ERROR
+                return Type.TYPE_ERROR
+            array_type = self.struct_definitions[array_type]
+            
         for size_node in reversed(node.sizes):
             array_type = ArrayType(array_type, size_node.val)
         
@@ -96,6 +105,59 @@ class TypeInference:
             
         self.symbols[var_name] = array_type
         node.avar.type = array_type
+        node.type = Type.VOID
+        return Type.VOID
+
+    def visit_StructDefinition(self, node):
+        if node.name in self.struct_definitions:
+            self.error(node, f"Struct '{node.name}' is already defined")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+        
+        # Resolve field types (could be primitive or another struct)
+        resolved_fields = {}
+        for f_name, f_type_spec in node.fields:
+            if isinstance(f_type_spec, str):
+                # Resolve struct name
+                if f_type_spec not in self.struct_definitions:
+                    self.error(node, f"Unknown type '{f_type_spec}' for field '{f_name}'")
+                    resolved_fields[f_name] = Type.TYPE_ERROR
+                else:
+                    resolved_fields[f_name] = self.struct_definitions[f_type_spec]
+            else:
+                resolved_fields[f_name] = f_type_spec
+        
+        from chirontypes import StructType
+        st = StructType(node.name, resolved_fields)
+        self.struct_definitions[node.name] = st
+        node.type = Type.VOID
+        return Type.VOID
+
+    def visit_FieldAssignmentCommand(self, node):
+        curr_type = self.visit(node.obj_expr)
+        if curr_type == Type.TYPE_ERROR:
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+        
+        # Drill down through fields
+        for field_name in node.fields:
+            from chirontypes import StructType
+            if not isinstance(curr_type, StructType):
+                self.error(node, f"Cannot access field '{field_name}' on non-struct type {curr_type}")
+                node.type = Type.TYPE_ERROR
+                return Type.TYPE_ERROR
+            if field_name not in curr_type.fields:
+                self.error(node, f"Struct '{curr_type.name}' has no field '{field_name}'")
+                node.type = Type.TYPE_ERROR
+                return Type.TYPE_ERROR
+            curr_type = curr_type.fields[field_name]
+        
+        rhs_type = self.visit(node.rexpr)
+        if not self.is_assignable(rhs_type, curr_type):
+            self.error(node, f"Cannot assign {rhs_type} to field with type {curr_type}")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+        
         node.type = Type.VOID
         return Type.VOID
 
@@ -160,52 +222,104 @@ class TypeInference:
         node.type = curr_type
         return curr_type
 
-    def visit_AssignmentCommand(self, node):
-        # First visit the right-hand side expression (to infer its type)
-        rhs_type = self.visit(node.rexpr)
+    def visit_FieldAccess(self, node):
+        obj_type = self.visit(node.obj_expr)
+        from chirontypes import StructType
+        if obj_type == Type.TYPE_ERROR:
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+            
+        if not isinstance(obj_type, StructType):
+            self.error(node, f"Cannot access field '{node.field_name}' on non-struct type {obj_type}")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+            
+        if node.field_name not in obj_type.fields:
+            self.error(node, f"Struct '{obj_type.name}' has no field '{node.field_name}'")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+            
+        node.type = obj_type.fields[node.field_name]
+        return node.type
 
-        print(f"Assignment: LHS={node.lvar.varname}, RHS type={rhs_type}, RHS node={type(node.rexpr).__name__}")   # ← debug
-        
-        # Get the left-hand side variable
+    def visit_AssignmentCommand(self, node):
+        # Handle struct literals specially (infer type from LHS)
         var_node = node.lvar
         var_name = var_node.varname
-
-        # Check if variable already has an established type
+        
+        # Determine target type first if it's already in symbols or declared
+        target_type = None
         if var_name in self.symbols:
-            established_type = self.symbols[var_name]
-            if var_node.type != Type.UNKNOWN and var_node.type != established_type:
-                self.error(node, f"Variable '{var_name}' redeclared with type {var_node.type.value}, previously {established_type.value}")
-                node.type = Type.TYPE_ERROR
-                return Type.TYPE_ERROR
-            elif not self.is_assignable(rhs_type, established_type):
-                self.error(node, f"Cannot assign {rhs_type.value} to variable '{var_name}' of type {established_type.value}")
-                node.type = Type.TYPE_ERROR
-                return Type.TYPE_ERROR
+            target_type = self.symbols[var_name]
+        elif var_node.type != Type.UNKNOWN:
+            target_type = var_node.type
+            
+        if isinstance(target_type, str):
+            if target_type in self.struct_definitions:
+                target_type = self.struct_definitions[target_type]
             else:
-                var_node.type = established_type
-                if rhs_type != established_type:
-                    node.rexpr.type = established_type  # Promote/demote RHS expression
-        else:
-            # First time seeing this variable
-            if var_node.type != Type.UNKNOWN:
-                if not self.is_assignable(rhs_type, var_node.type):
-                    self.error(node, f"Cannot assign {rhs_type.value} to variable '{var_name}' of declared type {var_node.type.value}")
-                    # Register it anyway to avoid "used before assignment" errors
-                    self.symbols[var_name] = var_node.type
+                self.error(node, f"Unknown type '{target_type}'")
+                node.type = Type.TYPE_ERROR
+                return Type.TYPE_ERROR
+
+        from ChironAST.ChironAST import StructLiteral
+        from chirontypes import StructType
+        if isinstance(node.rexpr, StructLiteral):
+            if not target_type or not isinstance(target_type, StructType):
+                self.error(node, f"Cannot initialize {target_type if target_type else 'unknown type'} with struct literal")
+                node.type = Type.TYPE_ERROR
+                return Type.TYPE_ERROR
+            
+            # Check literal elements
+            literal = node.rexpr
+            if len(literal.values) != len(target_type.fields):
+                self.error(node, f"Struct literal for '{target_type.name}' has {len(literal.values)} values, expected {len(target_type.fields)}")
+                node.type = Type.TYPE_ERROR
+                return Type.TYPE_ERROR
+            
+            # Match field by field (positional)
+            field_types = list(target_type.fields.values())
+            for i, val_expr in enumerate(literal.values):
+                val_type = self.visit(val_expr)
+                if not self.is_assignable(val_type, field_types[i]):
+                    self.error(node, f"Field {i} expected {field_types[i]}, got {val_type}")
                     node.type = Type.TYPE_ERROR
                     return Type.TYPE_ERROR
-                inferred = var_node.type
-                if rhs_type != var_node.type:
-                    node.rexpr.type = var_node.type  # Promote/demote RHS expression
-            else:
-                inferred = rhs_type
             
-            # Lock in the type for this variable in the symbol table
-            self.symbols[var_name] = inferred
-            var_node.type = inferred
+            literal.type = target_type
+            rhs_type = target_type
+        else:
+            # Normal expression
+            rhs_type = self.visit(node.rexpr)
+
+        # If target_type was unknown, lock it in now
+        if not target_type:
+            target_type = rhs_type
+            self.symbols[var_name] = target_type
+            var_node.type = target_type
+        else:
+            if not self.is_assignable(rhs_type, target_type):
+                self.error(node, f"Cannot assign {rhs_type} to variable '{var_name}' of type {target_type}")
+                node.type = Type.TYPE_ERROR
+                return Type.TYPE_ERROR
+            
+            self.symbols[var_name] = target_type
+            var_node.type = target_type
+            if rhs_type != target_type and not isinstance(target_type, StructType):
+                # Promote/demote primitive types
+                node.rexpr.type = target_type
 
         node.type = Type.VOID
         return Type.VOID
+
+    def visit_StructLiteral(self, node):
+        # StructLiteral by itself has UNKNOWN type because we don't know WHICH struct it is.
+        # It must be inferred from the context (e.g. AssignmentCommand).
+        # We'll visit children to catch any errors.
+        for val in node.values:
+            self.visit(val)
+        node.type = Type.UNKNOWN
+        return Type.UNKNOWN
 
     def visit_ConditionCommand(self, node):
         cond_type = self.visit(node.cond)

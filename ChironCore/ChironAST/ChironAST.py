@@ -42,6 +42,34 @@ class ArrayAssignmentCommand(Instruction):
         dims = "".join(["[" + i.__str__() + "]" for i in self.indices])
         return self.avar.__str__() + dims + " = " + self.rexpr.__str__()
 
+class FieldAssignmentCommand(Instruction):
+    def __init__(self, obj_expr, fields, rexpr):
+        """
+        :param obj_expr: The struct object expression (Var, ArrayAccess, or FieldAccess)
+        :param fields: List of field names (strings) representing the access path
+        :param rexpr: The expression to assign
+        """
+        self.obj_expr = obj_expr
+        self.fields = fields
+        self.rexpr = rexpr
+
+    def __str__(self):
+        fields_str = ".".join(self.fields)
+        return f"{self.obj_expr}.{fields_str} = {self.rexpr}"
+
+class StructDefinition(Instruction):
+    def __init__(self, name, fields):
+        """
+        :param name: Struct name
+        :param fields: List of (field_name, type) tuples
+        """
+        self.name = name
+        self.fields = fields
+
+    def __str__(self):
+        fields_str = ", ".join([f"{n} {t.value if hasattr(t, 'value') else str(t)}" for n, t in self.fields])
+        return f"struct {self.name} {{ {fields_str} }}"
+
 
 class ConditionCommand(Instruction):
     def __init__(self, condition):
@@ -270,6 +298,27 @@ class ArrayAccess(Value):
     def __str__(self):
         dims = "".join(["[" + i.__str__() + "]" for i in self.indices])
         return self.avar.__str__() + dims
+
+class FieldAccess(Value):
+    def __init__(self, obj_expr, field_name):
+        super().__init__()
+        self.obj_expr = obj_expr
+        self.field_name = field_name
+
+    def __str__(self):
+        return f"{self.obj_expr}.{self.field_name}"
+
+class StructLiteral(Value):
+    def __init__(self, values):
+        """
+        :param values: List of expressions in order of struct definition
+        """
+        super().__init__()
+        self.values = values
+
+    def __str__(self):
+        return "{" + ", ".join([v.__str__() for v in self.values]) + "}"
+
 class Num(Value):
     def __init__(self, v):
         super().__init__()
