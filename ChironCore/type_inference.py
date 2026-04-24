@@ -267,6 +267,14 @@ class TypeInference:
         if target_type == Type.TYPE_ERROR:
             node.type = Type.TYPE_ERROR
             return Type.TYPE_ERROR
+            
+        # 3. Compatibility Check
+        if not rhs_type.is_subtype_of(target_type):
+            rhs_val = rhs_type.value if hasattr(rhs_type, 'value') else str(rhs_type)
+            tgt_val = target_type.value if hasattr(target_type, 'value') else str(target_type)
+            self.error(node, f"Type mismatch in assignment: cannot assign {rhs_val} to {tgt_val}")
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
 
         # 3. Check Struct Literal special case
         if isinstance(node.rexpr, StructLiteral):

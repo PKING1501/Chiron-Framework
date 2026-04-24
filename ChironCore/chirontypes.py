@@ -16,7 +16,8 @@ class Type(Enum):
     
     def is_subtype_of(self, other):
         """Check if this type is a subtype of another type"""
-        if self == other:
+        # UNKNOWN (like {}) can be assigned to anything (inferred from context).
+        if self == other or self == Type.UNKNOWN:
             return True
         
         promotions = {
@@ -47,9 +48,7 @@ class ArrayType:
         return False
         
     def is_subtype_of(self, other):
-        # if self == other or other == Type.UNKNOWN:
-        #     return True
-        return False
+        return self == other
 
 class StructType:
     def __init__(self, name, fields):
@@ -72,4 +71,4 @@ class StructType:
         return False
 
     def is_subtype_of(self, other):
-        return self == other
+        return self == other or self == Type.UNKNOWN
