@@ -1,7 +1,7 @@
 
 from ChironAST import ChironAST
 from ChironHooks import Chironhooks
-from chirontypes import Type, ArrayType
+from chirontypes import Type, ArrayType, StructType
 import turtle
 
 Release="Chiron v5.3"
@@ -10,37 +10,48 @@ def addContext(node):
     if isinstance(node, str):
         return node.strip().replace(":", "self.prg.")
     
-    from chirontypes import StructType, ArrayType
     
     # helper for SoA flattening in expressions
     def flatten_expr(expr):
-        if isinstance(expr, ChironAST.FieldAccess):
-            # Resolve the base (could be a Var or ArrayAccess or another FieldAccess)
-            if isinstance(expr.obj_expr, ChironAST.Var):
-                base_name = expr.obj_expr.varname.replace(":", "")
-                return f"self.prg.__st_{base_name}__{expr.field_name}"
-            elif isinstance(expr.obj_expr, ChironAST.ArrayAccess):
-                base_var = expr.obj_expr.avar
-                base_name = base_var.varname.replace(":", "")
-                indices_str = "".join([f"[{flatten_expr(i)}]" for i in expr.obj_expr.indices])
-                return f"self.prg.__st_{base_name}__{expr.field_name}{indices_str}"
-            elif isinstance(expr.obj_expr, ChironAST.FieldAccess):
-                # Nested struct: s.a.b -> __st_s__a__b
-                inner_flattened = flatten_expr(expr.obj_expr)
-                # inner_flattened is self.prg.__st_s__a
-                # we want self.prg.__st_s__a__b
-                return inner_flattened + "__" + expr.field_name
+        def is_struct_based(t):
+            if isinstance(t, StructType):
+                return True
+            if isinstance(t, ArrayType):
+                return is_struct_based(t.element_type)
+            return False
+
+        def resolve(e):
+            # Returns (flattened_name_segment, indices_str)
+            if isinstance(e, ChironAST.FieldAccess):
+                name, indices = resolve(e.obj_expr)
+                return f"{name}__{e.field_name}", indices
+            elif isinstance(e, ChironAST.ArrayAccess):
+                name, indices = resolve(e.avar)
+                new_indices = "".join([f"[{flatten_expr(i)}]" for i in e.indices])
+                return name, indices + new_indices
+            elif isinstance(e, ChironAST.Var):
+                prefix = "__st_" if is_struct_based(e.type) else ""
+                name = prefix + e.varname.replace(":", "")
+                return name, ""
             else:
-                # Fallback
-                return f"({flatten_expr(expr.obj_expr)}).{expr.field_name}"
-        elif isinstance(expr, ChironAST.Var):
-            return "self.prg." + expr.varname.replace(":", "")
-        elif isinstance(expr, ChironAST.ArrayAccess):
-            base_name = expr.avar.varname.replace(":", "")
-            indices_str = "".join([f"[{flatten_expr(i)}]" for i in expr.indices])
-            return f"self.prg.{base_name}{indices_str}"
+                return str(e).replace(":", "self.prg."), ""
+
+        if isinstance(expr, (ChironAST.FieldAccess, ChironAST.ArrayAccess, ChironAST.Var)):
+            name, indices = resolve(expr)
+            return f"self.prg.{name}{indices}"
+        elif isinstance(expr, ChironAST.BinArithOp):
+            return f"({flatten_expr(expr.lexpr)} {expr.symbol} {flatten_expr(expr.rexpr)})"
+        elif isinstance(expr, ChironAST.UnaryArithOp):
+            return f"{expr.symbol}{flatten_expr(expr.expr)}"
+        elif isinstance(expr, ChironAST.BinCondOp):
+            return f"({flatten_expr(expr.lexpr)} {expr.symbol} {flatten_expr(expr.rexpr)})"
+        elif isinstance(expr, ChironAST.NOT):
+            return f"(not {flatten_expr(expr.expr)})"
+        elif hasattr(expr, "val"): # Literals
+            return str(expr)
+        elif isinstance(expr, ChironAST.PenStatus):
+            return "self.trtl.isdown()"
         else:
-            # For other expressions, use the standard __str__ and replace colons
             return str(expr).replace(":", "self.prg.")
 
     return flatten_expr(node)
@@ -124,6 +135,7 @@ class ConcreteInterpreter(Interpreter):
         if self.args is not None and self.args.hooks:
             self.chironhook = Chironhooks.ConcreteChironHooks()
         self.pc = 0
+        self.structs = {}
 
     def interpret(self):
         print("Program counter : ", self.pc)
@@ -175,49 +187,51 @@ class ConcreteInterpreter(Interpreter):
         for key,val in params.items():
             var = key.replace(":","")
             exec("setattr(self.prg,\"%s\",%s)" % (var, val))
-    
+     
+    def perform_assign(self, lhs_prefix, rhs_expr_str, t, indices_str=""):
+        # Resolve string type to StructType if possible
+        if isinstance(t, str) and t in self.structs:
+            t = self.structs[t]
+            
+        print(f"    Performing assign: {lhs_prefix}{indices_str} = {rhs_expr_str} (type: {t})")
+        if isinstance(t, StructType):
+            # Copying a whole struct (from another struct var)
+            for f_name, f_type in t.fields.items():
+                self.perform_assign(f"{lhs_prefix}__{f_name}", f"{rhs_expr_str}__{f_name}", f_type, indices_str)
+        else:
+            # Primitive assignment
+            rhs_val = rhs_expr_str
+            if t in [Type.FLOAT, Type.DOUBLE]:
+                rhs_val = f"float({rhs_val})"
+            elif t == Type.INT:
+                rhs_val = f"int({rhs_val})"
+            elif t == Type.STRING:
+                rhs_val = f"str({rhs_val})"
+            
+            print(f"    Final assignment: self.prg.{lhs_prefix}{indices_str} = {rhs_val}")
+            exec(f"self.prg.{lhs_prefix}{indices_str} = {rhs_val}")
+
     def handleAssignment(self, stmt, tgt):
         print("  Assignment Statement")
         lhs_base = str(stmt.lvar).replace(":","")
-        from chirontypes import StructType, ArrayType
         
-        # Helper for recursive initialization/copying
-        def perform_assign(lhs_prefix, rhs_expr_str, t):
-            if isinstance(t, StructType):
-                # Copying a whole struct (from another struct var)
-                # RHS should be another struct var name in Python (flattened)
-                for f_name, f_type in t.fields.items():
-                    perform_assign(f"{lhs_prefix}__{f_name}", f"{rhs_expr_str}__{f_name}", f_type)
-            else:
-                # Primitive assignment
-                rhs_val = rhs_expr_str
-                if t in [Type.FLOAT, Type.DOUBLE]:
-                    rhs_val = f"float({rhs_val})"
-                elif t == Type.INT:
-                    rhs_val = f"int({rhs_val})"
-                elif t == Type.STRING:
-                    rhs_val = f"str({rhs_val})"
-                exec(f"setattr(self.prg, \"{lhs_prefix}\", {rhs_val})")
-
         if isinstance(stmt.rexpr, ChironAST.StructLiteral):
             # Initializing with {v1, v2, ...}
             st_type = stmt.lvar.type
             for (f_name, f_type), val_expr in zip(st_type.fields.items(), stmt.rexpr.values):
                 val_rhs = addContext(val_expr)
-                # Note: Literals don't need __st_ prefix on themselves, but their destination does
-                perform_assign(f"__st_{lhs_base}__{f_name}", val_rhs, f_type)
+                self.perform_assign(f"__st_{lhs_base}__{f_name}", val_rhs, f_type)
         elif isinstance(stmt.lvar.type, StructType):
             # Assignment from another struct: s1 = s2
-            rhs_base = addContext(stmt.rexpr) # self.prg.s2 (Wait, s2 is flattened!)
-            # Actually, addContext(Var(":s2")) -> self.prg.s2. But we want self.prg.__st_s2
-            # If it's a Var, we can do it easily.
             if isinstance(stmt.rexpr, ChironAST.Var):
                 rhs_st_base = "__st_" + stmt.rexpr.varname.replace(":", "")
                 for f_name, f_type in stmt.lvar.type.fields.items():
-                    perform_assign(f"__st_{lhs_base}__{f_name}", f"self.prg.{rhs_st_base}__{f_name}", f_type)
+                    self.perform_assign(f"__st_{lhs_base}__{f_name}", f"self.prg.{rhs_st_base}__{f_name}", f_type)
             else:
-                # Complex RHS result? Not supported yet (no function calls)
-                raise NotImplementedError("Structural assignment from complex expressions not supported.")
+                # Fallback for general expressions that evaluate to a struct
+                rhs_expr_str = addContext(stmt.rexpr)
+                for f_name, f_type in stmt.lvar.type.fields.items():
+                    self.perform_assign(f"__st_{lhs_base}__{f_name}", f"{rhs_expr_str}__{f_name}", f_type)
         else:
             # Normal primitive assignment
             rhs = addContext(stmt.rexpr)
@@ -227,37 +241,60 @@ class ConcreteInterpreter(Interpreter):
                 rhs = f"int({rhs})"
             elif stmt.lvar.type == Type.STRING:
                 rhs = f"str({rhs})"
+            print(f"    Performing primitive assign: self.prg.{lhs_base} = {rhs}")
             setattr(self.prg, lhs_base, eval(rhs, {"self": self, "int": int, "float": float, "str": str}))
 
         return 1
 
     def handleFieldAssignment(self, stmt, tgt):
         print("  Field Assignment Statement")
-        # s.a.b = val -> __st_s__a__b = val
-        # arr[i].a = val -> __st_arr__a[i] = val
-        
+        # Resolve base name and any indices
         if isinstance(stmt.obj_expr, ChironAST.Var):
             base_name = "__st_" + stmt.obj_expr.varname.replace(":", "")
             indices_str = ""
+            curr_type = stmt.obj_expr.type
         elif isinstance(stmt.obj_expr, ChironAST.ArrayAccess):
             base_name = "__st_" + stmt.obj_expr.avar.varname.replace(":", "")
             indices_str = "".join([f"[{addContext(i)}]" for i in stmt.obj_expr.indices])
+            curr_type = stmt.obj_expr.type 
         else:
              raise NotImplementedError("Only Var and ArrayAccess supported as base for field assignment.")
 
+        # Resolve the type of the field we are assigning to
+        for field_name in stmt.fields:
+            if isinstance(curr_type, StructType):
+                curr_type = curr_type.fields[field_name]
+            else:
+                # Should have been caught by type checking
+                raise TypeError(f"Cannot access field {field_name} on non-struct type {curr_type}")
+
         flattened_name = base_name + "__" + "__".join(stmt.fields)
         rhs_expr = addContext(stmt.rexpr)
-        exec(f"self.prg.{flattened_name}{indices_str} = {rhs_expr}")
+        
+        if isinstance(curr_type, StructType):
+            # Structural copy to a field
+            self.perform_assign(flattened_name, rhs_expr, curr_type, indices_str)
+        else:
+            # Primitive assignment to a field
+            if curr_type in [Type.FLOAT, Type.DOUBLE]:
+                rhs_expr = f"float({rhs_expr})"
+            elif curr_type == Type.INT:
+                rhs_expr = f"int({rhs_expr})"
+            elif curr_type == Type.STRING:
+                rhs_expr = f"str({rhs_expr})"
+            
+            exec(f"self.prg.{flattened_name}{indices_str} = {rhs_expr}")
+        
         return 1
 
     def handleStructDefinition(self, stmt, tgt):
         print(f"  Struct Definition: {stmt.name}")
+        self.structs[stmt.name] = StructType(stmt.name, dict(stmt.fields))
         return 1
 
     def handleArrayAllocation(self, stmt, tgt):
         print("  Array Allocation")
         lhs_base = str(stmt.avar).replace(":", "")
-        from chirontypes import StructType, ArrayType
         
         def create_primitive_multi_dim(sizes_exprs):
             if len(sizes_exprs) == 1:
@@ -269,15 +306,33 @@ class ConcreteInterpreter(Interpreter):
         
         # Element type could be a struct (SoA)
         curr_t = stmt.elem_type
-        if isinstance(curr_t, StructType):
-            # Create multiple arrays, one for each field
-            for f_name, f_type in curr_t.fields.items():
+        if isinstance(curr_t, str) and curr_t in self.structs:
+            curr_t = self.structs[curr_t]
+
+        namespace = {"self": self, "int": int, "float": float, "str": str}
+
+        def allocate_soa(prefix, t):
+            # Resolve string type to StructType if possible
+            if isinstance(t, str) and t in self.structs:
+                t = self.structs[t]
+                
+            if isinstance(t, StructType):
+                for f_name, f_type in t.fields.items():
+                    print(f"    Allocating field {prefix}__{f_name} of type {f_type}")
+                    allocate_soa(f"{prefix}__{f_name}", f_type)
+            else:
                 alloc_expr = create_primitive_multi_dim(sizes_exprs)
-                exec(f"self.prg.__st_{lhs_base}__{f_name} = {alloc_expr}")
+                code = f"self.prg.{prefix} = {alloc_expr}"
+                print(f"    Allocating array for leaf field {prefix}: {code}")
+                exec(code, namespace, namespace)
+
+        if isinstance(curr_t, StructType):
+            allocate_soa(f"__st_{lhs_base}", curr_t)
         else:
             alloc_expr = create_primitive_multi_dim(sizes_exprs)
-            exec(f"self.prg.{lhs_base} = {alloc_expr}")
-            
+            code = f"self.prg.{lhs_base} = {alloc_expr}"
+            exec(code, namespace, namespace)
+        
         return 1
 
     def handleArrayAssignment(self, stmt, tgt):

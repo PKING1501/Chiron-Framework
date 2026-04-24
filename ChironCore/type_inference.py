@@ -3,8 +3,8 @@
 # Type inference engine for ChironLang
 
 import sys
-from chirontypes import Type, ArrayType
-from ChironAST.ChironAST import AST, Sum, Div
+from chirontypes import Type, ArrayType, StructType
+from ChironAST.ChironAST import AST, Sum, Div, StructLiteral
 
 class TypeInferenceError(Exception):
     pass
@@ -127,7 +127,6 @@ class TypeInference:
             else:
                 resolved_fields[f_name] = f_type_spec
         
-        from chirontypes import StructType
         st = StructType(node.name, resolved_fields)
         self.struct_definitions[node.name] = st
         node.type = Type.VOID
@@ -141,7 +140,6 @@ class TypeInference:
         
         # Drill down through fields
         for field_name in node.fields:
-            from chirontypes import StructType
             if not isinstance(curr_type, StructType):
                 self.error(node, f"Cannot access field '{field_name}' on non-struct type {curr_type}")
                 node.type = Type.TYPE_ERROR
@@ -224,7 +222,6 @@ class TypeInference:
 
     def visit_FieldAccess(self, node):
         obj_type = self.visit(node.obj_expr)
-        from chirontypes import StructType
         if obj_type == Type.TYPE_ERROR:
             node.type = Type.TYPE_ERROR
             return Type.TYPE_ERROR
@@ -262,8 +259,6 @@ class TypeInference:
                 node.type = Type.TYPE_ERROR
                 return Type.TYPE_ERROR
 
-        from ChironAST.ChironAST import StructLiteral
-        from chirontypes import StructType
         if isinstance(node.rexpr, StructLiteral):
             if not target_type or not isinstance(target_type, StructType):
                 self.error(node, f"Cannot initialize {target_type if target_type else 'unknown type'} with struct literal")

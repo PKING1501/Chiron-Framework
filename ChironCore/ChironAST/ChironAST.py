@@ -30,7 +30,8 @@ class ArrayAllocation(Instruction):
 
     def __str__(self):
         dims = "".join(["[" + s.__str__() + "]" for s in self.sizes])
-        return self.avar.__str__() + " " + self.elem_type.value + dims
+        et = self.elem_type.value if hasattr(self.elem_type, 'value') else str(self.elem_type)
+        return self.avar.__str__() + " " + et + dims
 
 class ArrayAssignmentCommand(Instruction):
     def __init__(self, arr_var, indices, rexpr):
