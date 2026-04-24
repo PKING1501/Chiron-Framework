@@ -26,12 +26,13 @@ instruction : assignment
             | pauseCommand
             ;
 
-structDecl : 'struct' NAME '{' (NAME type (',' NAME type)*)? '}' ;
-fieldAssignment : (VAR | arrayAccess) ('.' NAME)+ '=' expr ;
-arrayAccess : VAR ('[' expr ']')+ ;
+structDecl : 'struct' NAME '{' (fieldDecl (',' fieldDecl)*)? '}' ;
+fieldDecl : NAME type ('[' NUM ']')* ;
+fieldAssignment : (primary '.' NAME | primary '[' expr ']') '=' expr ;
+arrayAccess : primary ('[' expr ']')+ ;
 
 arrayDecl : VAR type ('[' NUM ']')+ ;
-arrayAssignment : VAR ('[' expr ']')+ '=' expr ;
+arrayAssignment : primary ('[' expr ']')+ '=' expr ;
 
 conditional : ifConditional | ifElseConditional ;
 
@@ -69,9 +70,9 @@ primary : value                  #primaryValue
         | '(' expr ')'           #parenExpr
         | '(' type ')' primary   #castExpr
         | PENCOND                #penCondition
-        | VAR ('[' expr ']')+    #arrayAccessExpr
+        | primary ('[' expr ']')+ #arrayAccessExpr
         | primary '.' NAME       #fieldAccessExpr
-        | '{' expr (',' expr)* '}' #structLiteralExpr
+        | '{' (expr (',' expr)*)? '}' #structLiteralExpr
         ;
 
 value : NUM          #numValue

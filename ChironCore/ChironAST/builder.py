@@ -62,47 +62,71 @@ class astGenPass(tlangVisitor):
         return type_map.get(type_text, type_text) # returns string if it's a struct name
 
     def visitStructDecl(self, ctx: tlangParser.StructDeclContext):
-        name = ctx.NAME(0).getText()
+        name = ctx.NAME().getText()
         fields = []
-        # NAME type (',' NAME type)*
-        for i in range(1, len(ctx.NAME())):
-            field_name = ctx.NAME(i).getText()
-            field_type_text = ctx.type_(i-1).getText()
-            field_type = self._get_type_from_text(field_type_text)
-            fields.append((field_name, field_type))
+        for fctx in ctx.fieldDecl():
+            fields.append(self.visit(fctx))
         return [(ChironAST.StructDefinition(name, fields), 1)]
 
-    def visitFieldAssignment(self, ctx: tlangParser.FieldAssignmentContext):
+    def visitFieldDecl(self, ctx: tlangParser.FieldDeclContext):
+        field_name = ctx.NAME().getText()
+        base_type_text = ctx.type_().getText()
+        base_type = self._get_type_from_text(base_type_text)
+        
+        if ctx.NUM() and len(ctx.NUM()) > 0:
+            from chirontypes import ArrayType
+            curr_type = base_type
+            for n_ctx in reversed(ctx.NUM()):
+                curr_type = ArrayType(curr_type, int(n_ctx.getText()))
+            return (field_name, curr_type)
+        else:
+            return (field_name, base_type)
+
+    def _build_lvalue(self, ctx):
         if ctx.VAR():
             var_name = ctx.VAR().getText()
-            if not var_name.startswith(':'):
-                var_name = ':' + var_name
-            obj_expr = ChironAST.Var(var_name)
+            if not var_name.startswith(':'): var_name = ':' + var_name
+            node = ChironAST.Var(var_name)
+            node.type = Type.UNKNOWN
+            return node
+        elif ctx.primary():
+            return self.visit(ctx.primary())
+        return None
+
+    def visitFieldAssignment(self, ctx: tlangParser.FieldAssignmentContext):
+        # (primary '.' NAME | primary '[' expr ']') '=' expr
+        lhs = self.visit(ctx.primary())
+        if ctx.NAME():
+            lvar = ChironAST.FieldAccess(lhs, ctx.NAME().getText())
         else:
-            obj_expr = self.visit(ctx.arrayAccess())
-
-        fields = [n.getText() for n in ctx.NAME()]
-        rexpr = self.visit(ctx.expr())
-        return [(ChironAST.FieldAssignmentCommand(obj_expr, fields, rexpr), 1)]
-
-    def visitArrayAccess(self, ctx: tlangParser.ArrayAccessContext):
-        var_name = ctx.VAR().getText()
-        if not var_name.startswith(':'):
-            var_name = ':' + var_name
-        arr_var = ChironAST.Var(var_name)
-        indices = [self.visit(e) for e in ctx.expr()]
-        return ChironAST.ArrayAccess(arr_var, indices)
+            indices = [self.visit(e) for e in ctx.expr()]
+            lvar = ChironAST.ArrayAccess(lhs, indices)
+            
+        rexpr = self.visit(ctx.expr()[-1])
+        return [(ChironAST.AssignmentCommand(lvar, rexpr), 1)]
 
     def visitArrayAssignment(self, ctx: tlangParser.ArrayAssignmentContext):
-        var_name = ctx.VAR().getText()
-        if not var_name.startswith(':'):
-            var_name = ':' + var_name
-            
-        arr_var = ChironAST.Var(var_name, Type.UNKNOWN)
-        all_exprs = [self.visit(e) for e in ctx.expr()]
-        indices = all_exprs[:-1]
-        value_expr = all_exprs[-1]
-        return [(ChironAST.ArrayAssignmentCommand(arr_var, indices, value_expr), 1)]
+        # primary ('[' expr ']')+ '=' expr
+        obj = self.visit(ctx.primary())
+        indices = [self.visit(e) for e in ctx.expr()[:-1]]
+        rexpr = self.visit(ctx.expr()[-1])
+        lvar = ChironAST.ArrayAccess(obj, indices)
+        return [(ChironAST.AssignmentCommand(lvar, rexpr), 1)]
+
+    def visitArrayAccess(self, ctx: tlangParser.ArrayAccessContext):
+        obj = self.visit(ctx.primary())
+        indices = [self.visit(e) for e in ctx.expr()]
+        return ChironAST.ArrayAccess(obj, indices)
+
+    def visitArrayAccessExpr(self, ctx: tlangParser.ArrayAccessExprContext):
+        obj = self.visit(ctx.primary())
+        indices = [self.visit(e) for e in ctx.expr()]
+        return ChironAST.ArrayAccess(obj, indices)
+
+    def visitFieldAccessExpr(self, ctx: tlangParser.FieldAccessExprContext):
+        obj = self.visit(ctx.primary())
+        field_name = ctx.NAME().getText()
+        return ChironAST.FieldAccess(obj, field_name)
 
     def visitAssignment(self, ctx: tlangParser.AssignmentContext):
         var_name = ctx.VAR().getText()
@@ -318,20 +342,6 @@ class astGenPass(tlangVisitor):
         expr = self.visit(ctx.primary())
         return ChironAST.Cast(target_type, expr)
 
-    def visitArrayAccessExpr(self, ctx: tlangParser.ArrayAccessExprContext):
-        var_name = ctx.VAR().getText()
-        if not var_name.startswith(':'):
-            var_name = ':' + var_name
-            
-        arr_var = ChironAST.Var(var_name, Type.UNKNOWN)
-        indices = [self.visit(e) for e in ctx.expr()]
-        return ChironAST.ArrayAccess(arr_var, indices)
-
-    def visitFieldAccessExpr(self, ctx: tlangParser.FieldAccessExprContext):
-        obj_expr = self.visit(ctx.primary())
-        field_name = ctx.NAME().getText()
-        return ChironAST.FieldAccess(obj_expr, field_name)
-
     def visitStructLiteralExpr(self, ctx: tlangParser.StructLiteralExprContext):
-        values = [self.visit(e) for e in ctx.expr()]
+        values = [self.visit(e) for e in ctx.expr()] if ctx.expr() else []
         return ChironAST.StructLiteral(values)

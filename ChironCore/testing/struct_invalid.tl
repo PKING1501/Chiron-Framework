@@ -6,7 +6,7 @@ struct Point {
     y int
 }
 
-:p Point
+:p Point = {}
 
 // 1. Incorrect literal size (Too many)
 // :p = {1, 2, 3}
@@ -27,5 +27,5 @@ struct Point {
 // :arr NonExistent[5]
 
 // 7. Field access on non-struct
-:i int
+:i int = 0
 // :i.x = 10

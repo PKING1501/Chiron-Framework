@@ -9,12 +9,10 @@ class SyntaxException(Exception):
             ", Column : " + str(self.errors[1]) +\
             "\nReport: (" + self.errors[2] + ")"
 
-class SyntaxErrorListener():
+from antlr4.error.ErrorListener import ErrorListener
+
+class SyntaxErrorListener(ErrorListener):
     def syntaxError(self, recognizer, offendingSymbol, line, column, msg, e):
         raise SyntaxException("Syntax Error", (line, column, msg))
 
-    def reportAmbiguity(self):
-        raise ValueError("Ambiguity error.")
-
-    def reportContextSensitivity(self):
-        raise ValueError("Exit due to context sensitivity.")
+    # Inherit default implementations for other methods like reportAttemptingFullContext

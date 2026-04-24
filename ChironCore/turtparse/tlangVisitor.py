@@ -34,6 +34,11 @@ class tlangVisitor(ParseTreeVisitor):
         return self.visitChildren(ctx)
 
 
+    # Visit a parse tree produced by tlangParser#fieldDecl.
+    def visitFieldDecl(self, ctx:tlangParser.FieldDeclContext):
+        return self.visitChildren(ctx)
+
+
     # Visit a parse tree produced by tlangParser#fieldAssignment.
     def visitFieldAssignment(self, ctx:tlangParser.FieldAssignmentContext):
         return self.visitChildren(ctx)

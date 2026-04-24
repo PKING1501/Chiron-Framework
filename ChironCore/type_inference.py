@@ -4,6 +4,7 @@
 
 import sys
 from chirontypes import Type, ArrayType, StructType
+import ChironAST.ChironAST as ChironAST
 from ChironAST.ChironAST import AST, Sum, Div, StructLiteral
 
 class TypeInferenceError(Exception):
@@ -108,24 +109,28 @@ class TypeInference:
         node.type = Type.VOID
         return Type.VOID
 
+    def _resolve_type(self, type_spec, node):
+        from chirontypes import ArrayType
+        if isinstance(type_spec, str):
+            if type_spec not in self.struct_definitions:
+                self.error(node, f"Unknown type '{type_spec}'")
+                return Type.TYPE_ERROR
+            return self.struct_definitions[type_spec]
+        elif isinstance(type_spec, ArrayType):
+            elem_type = self._resolve_type(type_spec.element_type, node)
+            return ArrayType(elem_type, type_spec.size)
+        return type_spec
+
     def visit_StructDefinition(self, node):
         if node.name in self.struct_definitions:
             self.error(node, f"Struct '{node.name}' is already defined")
             node.type = Type.TYPE_ERROR
             return Type.TYPE_ERROR
         
-        # Resolve field types (could be primitive or another struct)
+        # Resolve field types (could be primitive, struct, or array of either)
         resolved_fields = {}
         for f_name, f_type_spec in node.fields:
-            if isinstance(f_type_spec, str):
-                # Resolve struct name
-                if f_type_spec not in self.struct_definitions:
-                    self.error(node, f"Unknown type '{f_type_spec}' for field '{f_name}'")
-                    resolved_fields[f_name] = Type.TYPE_ERROR
-                else:
-                    resolved_fields[f_name] = self.struct_definitions[f_type_spec]
-            else:
-                resolved_fields[f_name] = f_type_spec
+            resolved_fields[f_name] = self._resolve_type(f_type_spec, node)
         
         st = StructType(node.name, resolved_fields)
         self.struct_definitions[node.name] = st
@@ -194,16 +199,15 @@ class TypeInference:
         return Type.VOID
 
     def visit_ArrayAccess(self, node):
-        var_name = node.avar.varname
-        if var_name not in self.symbols:
-            self.error(node, f"Array '{var_name}' accessed before allocation")
+        curr_type = self._resolve_type(self.visit(node.avar), node)
+        if curr_type == Type.TYPE_ERROR:
             node.type = Type.TYPE_ERROR
             return Type.TYPE_ERROR
             
-        curr_type = self.symbols[var_name]
         for idx_node in node.indices:
+            curr_type = self._resolve_type(curr_type, node)
             if not isinstance(curr_type, ArrayType):
-                self.error(node, f"Too many indices for variable '{var_name}'")
+                self.error(node, f"Cannot index into non-array type {curr_type}")
                 node.type = Type.TYPE_ERROR
                 return Type.TYPE_ERROR
                 
@@ -214,14 +218,11 @@ class TypeInference:
                 return Type.TYPE_ERROR
             curr_type = curr_type.element_type
             
-        node.avar.type = self.symbols[var_name]
-        self.used_vars.add(var_name)
-        
-        node.type = curr_type
-        return curr_type
+        node.type = self._resolve_type(curr_type, node)
+        return node.type
 
     def visit_FieldAccess(self, node):
-        obj_type = self.visit(node.obj_expr)
+        obj_type = self._resolve_type(self.visit(node.obj_expr), node)
         if obj_type == Type.TYPE_ERROR:
             node.type = Type.TYPE_ERROR
             return Type.TYPE_ERROR
@@ -236,73 +237,49 @@ class TypeInference:
             node.type = Type.TYPE_ERROR
             return Type.TYPE_ERROR
             
-        node.type = obj_type.fields[node.field_name]
+        node.type = self._resolve_type(obj_type.fields[node.field_name], node)
         return node.type
 
     def visit_AssignmentCommand(self, node):
-        # Handle struct literals specially (infer type from LHS)
-        var_node = node.lvar
-        var_name = var_node.varname
-        
-        # Determine target type first if it's already in symbols or declared
-        target_type = None
-        if var_name in self.symbols:
-            target_type = self.symbols[var_name]
-        elif var_node.type != Type.UNKNOWN:
-            target_type = var_node.type
-            
-        if isinstance(target_type, str):
-            if target_type in self.struct_definitions:
-                target_type = self.struct_definitions[target_type]
-            else:
-                self.error(node, f"Unknown type '{target_type}'")
-                node.type = Type.TYPE_ERROR
-                return Type.TYPE_ERROR
+        # 1. Infer RHS
+        rhs_type = self._resolve_type(self.visit(node.rexpr), node)
+        if rhs_type == Type.TYPE_ERROR:
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
 
+        # 2. Determine target type (LHS)
+        if isinstance(node.lvar, ChironAST.Var):
+            var_name = node.lvar.varname
+            if var_name not in self.symbols:
+                # Declaration + Initialization
+                declared_t = self._resolve_type(node.lvar.type, node)
+                if declared_t == Type.UNKNOWN:
+                    self.symbols[var_name] = rhs_type
+                    node.lvar.type = rhs_type
+                else:
+                    self.symbols[var_name] = declared_t
+            target_type = self.symbols[var_name]
+        else:
+            # Complex LHS: ArrayAccess or FieldAccess
+            target_type = self.visit(node.lvar)
+            
+        target_type = self._resolve_type(target_type, node)
+        if target_type == Type.TYPE_ERROR:
+            node.type = Type.TYPE_ERROR
+            return Type.TYPE_ERROR
+
+        # 3. Check Struct Literal special case
         if isinstance(node.rexpr, StructLiteral):
-            if not target_type or not isinstance(target_type, StructType):
-                self.error(node, f"Cannot initialize {target_type if target_type else 'unknown type'} with struct literal")
+            if not isinstance(target_type, StructType):
+                self.error(node, f"Cannot initialize {target_type} with struct literal")
                 node.type = Type.TYPE_ERROR
                 return Type.TYPE_ERROR
             
-            # Check literal elements
-            literal = node.rexpr
-            if len(literal.values) != len(target_type.fields):
-                self.error(node, f"Struct literal for '{target_type.name}' has {len(literal.values)} values, expected {len(target_type.fields)}")
-                node.type = Type.TYPE_ERROR
-                return Type.TYPE_ERROR
-            
-            # Match field by field (positional)
-            field_types = list(target_type.fields.values())
-            for i, val_expr in enumerate(literal.values):
-                val_type = self.visit(val_expr)
-                if not self.is_assignable(val_type, field_types[i]):
-                    self.error(node, f"Field {i} expected {field_types[i]}, got {val_type}")
+            if len(node.rexpr.values) > 0: # Empty literal {} is fine
+                if len(node.rexpr.values) != len(target_type.fields):
+                    self.error(node, f"Struct literal for '{target_type.name}' has {len(node.rexpr.values)} values, expected {len(target_type.fields)}")
                     node.type = Type.TYPE_ERROR
                     return Type.TYPE_ERROR
-            
-            literal.type = target_type
-            rhs_type = target_type
-        else:
-            # Normal expression
-            rhs_type = self.visit(node.rexpr)
-
-        # If target_type was unknown, lock it in now
-        if not target_type:
-            target_type = rhs_type
-            self.symbols[var_name] = target_type
-            var_node.type = target_type
-        else:
-            if not self.is_assignable(rhs_type, target_type):
-                self.error(node, f"Cannot assign {rhs_type} to variable '{var_name}' of type {target_type}")
-                node.type = Type.TYPE_ERROR
-                return Type.TYPE_ERROR
-            
-            self.symbols[var_name] = target_type
-            var_node.type = target_type
-            if rhs_type != target_type and not isinstance(target_type, StructType):
-                # Promote/demote primitive types
-                node.rexpr.type = target_type
 
         node.type = Type.VOID
         return Type.VOID
@@ -391,7 +368,7 @@ class TypeInference:
         # Mark as used
         self.used_vars.add(var_name)
         
-        node.type = self.symbols[var_name]
+        node.type = self._resolve_type(self.symbols[var_name], node)
         return node.type
 
     # Binary arithmetic operations

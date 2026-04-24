@@ -35,7 +35,8 @@ class ArrayType:
             existing_dims = element_type.value[len(base_type_str):]
             self.value = f"{base_type_str}[{size}]{existing_dims}"
         else:
-            self.value = f"{element_type.value}[{size}]"
+            et_val = element_type.value if hasattr(element_type, 'value') else str(element_type)
+            self.value = f"{et_val}[{size}]"
         
     def __eq__(self, other):
         if not isinstance(other, ArrayType):

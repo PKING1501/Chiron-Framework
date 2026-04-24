@@ -40,7 +40,7 @@ struct Mesh {
 :points[2].y = 6
 
 // 4. Struct having array of structs (Deep nesting)
-:poly Polygon
+:poly Polygon = {}
 :poly.vertices[0] = :p1
 :poly.vertices[1] = {50, 60}
 :poly.center = {0, 0}
@@ -54,10 +54,9 @@ struct Mesh {
 
 // 6. Deep access in expressions
 :val = :scene[0].polys[0].vertices[2].x + :l.p1.y
-print :val // Expected: 10 + 50 = 60
 
 // 7. Drawing with deep access
 penup
-goto :scene[0].polys[0].vertices[1].x :scene[0].polys[0].vertices[1].y
+goto (:scene[0].polys[0].vertices[1].x, :scene[0].polys[0].vertices[1].y)
 pendown
 forward :val
